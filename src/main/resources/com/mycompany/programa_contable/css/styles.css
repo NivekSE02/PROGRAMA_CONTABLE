@@ -1,174 +1,152 @@
 /* ==========================================================================
-   UNIVERSIDAD CATÓLICA DE EL SALVADOR (UNICAES)
-   SISTEMA CONTABLE - HOJA DE ESTILOS CSS PROFESIONAL
+   FINANCE PRO - SISTEMA CONTABLE (ENTERPRISE EDITION)
+   TEMA PREMIUM: VINO ROJO Y DORADO (WINE RED & GOLD)
    ========================================================================== */
 
 .root {
-    -fx-font-family: 'Segoe UI', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
-    -fx-font-size: 13px;
-    -fx-background-color: #f8fafc;
-    -fx-text-fill: #1e293b;
+    -fx-font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    -fx-font-size: 14px;
+    -fx-background-color: #f4f5f7;
+    -fx-text-fill: #1e1e1e;
 }
 
-/* --- SIDEBAR Y NAVEGACIÓN --- */
-.sidebar {
-    -fx-background-color: #0f172a;
-    -fx-padding: 16px 12px;
-    -fx-spacing: 8px;
-    -fx-pref-width: 250px;
+/* --- TOP HEADER (NUEVO LAYOUT) --- */
+.top-header {
+    -fx-background-color: #5a1024;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.4), 10, 0, 0, 2);
 }
 
-.sidebar-title-container {
-    -fx-padding: 10px 8px 20px 8px;
-    -fx-alignment: center-left;
-    -fx-border-color: #1e293b;
-    -fx-border-width: 0 0 1px 0;
-}
-
-.sidebar-app-title {
-    -fx-font-size: 17px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #f8fafc;
-}
-
-.sidebar-app-subtitle {
-    -fx-font-size: 11px;
-    -fx-text-fill: #94a3b8;
-    -fx-font-weight: normal;
-}
-
-.nav-button {
-    -fx-background-color: transparent;
-    -fx-text-fill: #cbd5e1;
-    -fx-alignment: center-left;
-    -fx-padding: 10px 14px;
-    -fx-font-size: 13px;
-    -fx-background-radius: 8px;
-    -fx-cursor: hand;
-    -fx-pref-width: 226px;
-    -fx-font-weight: 500;
-}
-
-.nav-button:hover {
-    -fx-background-color: #1e293b;
-    -fx-text-fill: #38bdf8;
-}
-
-.nav-button-active {
-    -fx-background-color: #1e293b;
-    -fx-text-fill: #38bdf8;
-    -fx-font-weight: bold;
-    -fx-border-color: #38bdf8;
-    -fx-border-width: 0 0 0 4px;
-    -fx-border-radius: 4px;
-}
-
-/* --- TOPBAR / HEADER --- */
 .topbar {
-    -fx-background-color: #ffffff;
-    -fx-padding: 12px 24px;
-    -fx-border-color: #e2e8f0;
-    -fx-border-width: 0 0 1px 0;
-    -fx-alignment: center-left;
+    -fx-padding: 15px 25px 10px 25px;
+    -fx-background-color: #4a0a1a;
+}
+
+.brand-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #d4af37; /* Dorado */
 }
 
 .topbar-title {
     -fx-font-size: 18px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #0f172a;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: 600;
 }
 
 .user-chip {
-    -fx-background-color: #f1f5f9;
+    -fx-background-color: #ffffff;
     -fx-background-radius: 20px;
-    -fx-padding: 5px 14px;
-    -fx-spacing: 8px;
+    -fx-padding: 6px 16px;
     -fx-alignment: center;
-    -fx-border-color: #cbd5e1;
+    -fx-border-color: #d4af37;
     -fx-border-radius: 20px;
+    -fx-border-width: 2px;
+}
+
+.btn-logout {
+    -fx-background-color: transparent;
+    -fx-text-fill: #fca5a5;
+    -fx-font-weight: bold;
+    -fx-border-color: #fca5a5;
+    -fx-border-radius: 6px;
+    -fx-border-width: 1px;
+    -fx-padding: 6px 12px;
+    -fx-cursor: hand;
+}
+.btn-logout:hover {
+    -fx-background-color: #fca5a5;
+    -fx-text-fill: #4a0a1a;
+}
+
+/* --- RIBBON BAR (NAVEGACIÓN SUPERIOR) --- */
+.ribbon-bar {
+    -fx-background-color: #5a1024;
+    -fx-padding: 10px 25px;
+}
+
+.nav-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #e2e8f0;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 10px 18px;
+    -fx-background-radius: 6px;
+    -fx-cursor: hand;
+}
+
+.nav-button:hover {
+    -fx-background-color: #7a1c35;
+    -fx-text-fill: #ffffff;
+}
+
+.nav-button-active {
+    -fx-background-color: #d4af37;
+    -fx-text-fill: #4a0a1a;
+    -fx-font-weight: 900;
+}
+
+.main-content-pane {
+    -fx-background-color: #f4f5f7;
 }
 
 /* --- TARJETAS DASHBOARD Y PANELES --- */
 .card {
     -fx-background-color: #ffffff;
-    -fx-background-radius: 12px;
-    -fx-border-radius: 12px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
     -fx-border-color: #e2e8f0;
     -fx-border-width: 1px;
-    -fx-padding: 20px;
-    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.03), 8, 0, 0, 2);
+    -fx-padding: 25px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.05), 10, 0, 0, 4);
 }
 
 .card-title {
-    -fx-font-size: 12px;
-    -fx-text-fill: #64748b;
-    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-text-fill: #7a1c35;
+    -fx-font-weight: 800;
     -fx-text-transform: uppercase;
 }
 
 .card-value {
-    -fx-font-size: 24px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #0f172a;
-    -fx-padding: 6px 0 2px 0;
+    -fx-font-size: 28px;
+    -fx-font-weight: 900;
+    -fx-text-fill: #1e1e1e;
+    -fx-padding: 8px 0 4px 0;
 }
 
 .card-subtitle {
-    -fx-font-size: 11px;
-    -fx-text-fill: #94a3b8;
+    -fx-font-size: 12px;
+    -fx-text-fill: #64748b;
 }
 
-/* Acentos en tarjetas */
-.card-accent-indigo {
-    -fx-border-color: #e2e8f0;
-    -fx-border-width: 1px 1px 1px 4px;
-    -fx-border-color: #6366f1;
-}
-
-.card-accent-emerald {
-    -fx-border-color: #e2e8f0;
-    -fx-border-width: 1px 1px 1px 4px;
-    -fx-border-color: #10b981;
-}
-
-.card-accent-amber {
-    -fx-border-color: #e2e8f0;
-    -fx-border-width: 1px 1px 1px 4px;
-    -fx-border-color: #f59e0b;
-}
-
-.card-accent-rose {
-    -fx-border-color: #e2e8f0;
-    -fx-border-width: 1px 1px 1px 4px;
-    -fx-border-color: #ef4444;
+/* Acentos en tarjetas (Colores dorados y vinos) */
+.card-accent-indigo, .card-accent-emerald, .card-accent-amber, .card-accent-rose {
+    -fx-border-width: 2px 1px 1px 1px;
+    -fx-border-color: #d4af37 #e2e8f0 #e2e8f0 #e2e8f0;
 }
 
 /* --- BADGES DINÁMICOS DE PARTIDA DOBLE --- */
 .badge-cuadrado {
-    -fx-background-color: #dcfce7;
-    -fx-text-fill: #15803d;
+    -fx-background-color: #d4af37;
+    -fx-text-fill: #ffffff;
     -fx-font-weight: bold;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-padding: 8px 16px;
-    -fx-background-radius: 8px;
-    -fx-border-color: #86efac;
-    -fx-border-radius: 8px;
+    -fx-background-radius: 6px;
 }
 
 .badge-descuadrado {
-    -fx-background-color: #fee2e2;
-    -fx-text-fill: #b91c1c;
+    -fx-background-color: #4a0a1a;
+    -fx-text-fill: #fca5a5;
     -fx-font-weight: bold;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-padding: 8px 16px;
-    -fx-background-radius: 8px;
-    -fx-border-color: #fca5a5;
-    -fx-border-radius: 8px;
+    -fx-background-radius: 6px;
 }
 
 .badge-rol {
-    -fx-background-color: #e0e7ff;
-    -fx-text-fill: #4338ca;
+    -fx-background-color: #d4af37;
+    -fx-text-fill: #4a0a1a;
     -fx-font-weight: bold;
     -fx-font-size: 11px;
     -fx-padding: 3px 8px;
@@ -177,87 +155,83 @@
 
 /* --- BOTONES --- */
 .btn-primary {
-    -fx-background-color: #4f46e5;
-    -fx-text-fill: #ffffff;
-    -fx-font-weight: bold;
-    -fx-padding: 9px 18px;
-    -fx-background-radius: 8px;
+    -fx-background-color: #d4af37;
+    -fx-text-fill: #4a0a1a;
+    -fx-font-weight: 800;
+    -fx-padding: 10px 20px;
+    -fx-background-radius: 4px;
     -fx-cursor: hand;
 }
-
 .btn-primary:hover {
-    -fx-background-color: #4338ca;
+    -fx-background-color: #b38e24;
 }
 
 .btn-success {
-    -fx-background-color: #10b981;
-    -fx-text-fill: #ffffff;
-    -fx-font-weight: bold;
-    -fx-padding: 9px 18px;
-    -fx-background-radius: 8px;
+    -fx-background-color: #5a1024;
+    -fx-text-fill: #d4af37;
+    -fx-font-weight: 800;
+    -fx-padding: 10px 20px;
+    -fx-background-radius: 4px;
     -fx-cursor: hand;
 }
-
 .btn-success:hover {
-    -fx-background-color: #059669;
+    -fx-background-color: #4a0a1a;
 }
 
 .btn-danger {
-    -fx-background-color: #ef4444;
+    -fx-background-color: #7a1c35;
     -fx-text-fill: #ffffff;
-    -fx-font-weight: bold;
-    -fx-padding: 9px 18px;
-    -fx-background-radius: 8px;
+    -fx-font-weight: 800;
+    -fx-padding: 10px 20px;
+    -fx-background-radius: 4px;
     -fx-cursor: hand;
 }
-
 .btn-danger:hover {
-    -fx-background-color: #dc2626;
+    -fx-background-color: #4a0a1a;
 }
 
 .btn-secondary {
-    -fx-background-color: #f1f5f9;
-    -fx-text-fill: #334155;
-    -fx-font-weight: 600;
-    -fx-padding: 8px 16px;
-    -fx-background-radius: 8px;
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #4a0a1a;
+    -fx-font-weight: 700;
+    -fx-padding: 10px 20px;
+    -fx-background-radius: 4px;
     -fx-border-color: #cbd5e1;
-    -fx-border-radius: 8px;
+    -fx-border-width: 1px;
     -fx-cursor: hand;
 }
-
 .btn-secondary:hover {
-    -fx-background-color: #e2e8f0;
+    -fx-background-color: #f1f5f9;
 }
 
 /* --- TABLAS --- */
 .table-view {
     -fx-background-color: #ffffff;
-    -fx-background-radius: 8px;
-    -fx-border-radius: 8px;
-    -fx-border-color: #e2e8f0;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-border-color: #cbd5e1;
     -fx-border-width: 1px;
 }
 
 .table-view .column-header-background {
-    -fx-background-color: #f8fafc;
-    -fx-border-color: #e2e8f0;
-    -fx-border-width: 0 0 1px 0;
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 0 0 2px 0;
 }
 
 .table-view .column-header {
     -fx-background-color: transparent;
-    -fx-padding: 10px 12px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #334155;
-    -fx-font-size: 12px;
+    -fx-padding: 12px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #4a0a1a;
+    -fx-font-size: 13px;
 }
 
 .table-row-cell {
     -fx-background-color: #ffffff;
-    -fx-border-color: #f1f5f9;
+    -fx-border-color: #e2e8f0;
     -fx-border-width: 0 0 1px 0;
-    -fx-padding: 4px 0;
+    -fx-padding: 6px 0;
 }
 
 .table-row-cell:odd {
@@ -265,80 +239,76 @@
 }
 
 .table-row-cell:selected {
-    -fx-background-color: #eff6ff;
-    -fx-text-fill: #1e3a8a;
+    -fx-background-color: #fdf5e6;
+    -fx-text-fill: #4a0a1a;
 }
 
 /* --- CAMPOS DE ENTRADA Y FORMULARIOS --- */
 .text-field, .combo-box, .date-picker {
     -fx-background-color: #ffffff;
     -fx-border-color: #cbd5e1;
-    -fx-border-radius: 6px;
-    -fx-background-radius: 6px;
-    -fx-padding: 7px 10px;
-    -fx-font-size: 13px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 8px 12px;
+    -fx-font-size: 14px;
 }
 
 .text-field:focused, .combo-box:focused, .date-picker:focused {
-    -fx-border-color: #6366f1;
-    -fx-effect: dropshadow(three-pass-box, rgba(99, 102, 241, 0.2), 4, 0, 0, 0);
+    -fx-border-color: #d4af37;
+    -fx-border-width: 2px;
+    -fx-padding: 7px 11px;
 }
 
 .form-label {
-    -fx-font-weight: 600;
-    -fx-font-size: 12px;
-    -fx-text-fill: #475569;
+    -fx-font-weight: 700;
+    -fx-font-size: 14px;
+    -fx-text-fill: #4a0a1a;
 }
 
 /* --- CUENTA T (ESQUEMA DE MAYOR) --- */
 .t-account-card {
     -fx-background-color: #ffffff;
-    -fx-background-radius: 10px;
-    -fx-border-radius: 10px;
+    -fx-background-radius: 6px;
+    -fx-border-radius: 6px;
     -fx-border-color: #cbd5e1;
     -fx-border-width: 1px;
-    -fx-pref-width: 310px;
-    -fx-min-width: 300px;
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.04), 6, 0, 0, 2);
+    -fx-pref-width: 320px;
+    -fx-min-width: 320px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 8, 0, 0, 3);
 }
 
 .t-account-header {
-    -fx-background-color: #1e293b;
-    -fx-background-radius: 9px 9px 0 0;
-    -fx-padding: 10px;
+    -fx-background-color: #5a1024;
+    -fx-background-radius: 5px 5px 0 0;
+    -fx-padding: 12px;
     -fx-alignment: center;
 }
 
 .t-account-title {
-    -fx-text-fill: #ffffff;
-    -fx-font-weight: bold;
-    -fx-font-size: 13px;
+    -fx-text-fill: #d4af37;
+    -fx-font-weight: 800;
+    -fx-font-size: 14px;
 }
 
 .t-column-header {
-    -fx-font-weight: bold;
-    -fx-font-size: 11px;
-    -fx-text-fill: #64748b;
-    -fx-padding: 4px 8px;
+    -fx-font-weight: 800;
+    -fx-font-size: 12px;
+    -fx-text-fill: #7a1c35;
+    -fx-padding: 6px 8px;
     -fx-alignment: center;
 }
 
 .t-cell {
     -fx-font-family: 'Consolas', monospace;
-    -fx-font-size: 12px;
-    -fx-text-fill: #1e293b;
-    -fx-padding: 3px 8px;
-}
-
-.t-divider {
-    -fx-background-color: #0f172a;
-    -fx-pref-width: 2px;
+    -fx-font-size: 13px;
+    -fx-text-fill: #1e1e1e;
+    -fx-padding: 4px 8px;
 }
 
 .t-footer-line {
-    -fx-border-color: #0f172a;
+    -fx-border-color: #4a0a1a;
     -fx-border-width: 1px 0 3px 0;
-    -fx-padding: 6px 8px;
+    -fx-padding: 8px;
     -fx-font-weight: bold;
     -fx-font-family: 'Consolas', monospace;
 }

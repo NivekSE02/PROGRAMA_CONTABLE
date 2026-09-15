@@ -38,7 +38,7 @@ public class MayorizacionService {
         Map<String, MayorCuenta> mapaMayor = new LinkedHashMap<>();
 
         // 1. Cargar todas las cuentas del catálogo ordenadas por código
-        String sqlCuentas = "SELECT codigo, nombre, tipo, naturaleza FROM cuentas WHERE permite_movimiento = 1 ORDER BY codigo ASC";
+        String sqlCuentas = "SELECT codigo, nombre, tipo, naturaleza FROM cuentas ORDER BY codigo ASC";
         try (Connection conn = dbManager.getConnection();
              Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(sqlCuentas)) {

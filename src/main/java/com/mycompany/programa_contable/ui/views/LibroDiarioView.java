@@ -36,7 +36,7 @@ public class LibroDiarioView extends VBox {
     // Formulario de Registro
     private DatePicker dpFecha;
     private TextField txtNumero;
-    private TextField txtConcepto;
+    private TextField txtComentarioAsiento;
     private TableView<DetalleAsiento> tblDetalle;
     private ObservableList<DetalleAsiento> lineasAsiento;
 
@@ -60,8 +60,8 @@ public class LibroDiarioView extends VBox {
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
-        Tab tabNuevo = new Tab("📝 Registrar Nuevo Asiento", crearTabNuevoAsiento());
-        Tab tabHistorial = new Tab("📚 Historial del Libro Diario", crearTabHistorial());
+        Tab tabNuevo = new Tab("Registrar Nuevo Asiento", crearTabNuevoAsiento());
+        Tab tabHistorial = new Tab("Historial del Libro Diario", crearTabHistorial());
 
         tabPane.getTabs().addAll(tabNuevo, tabHistorial);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
@@ -77,57 +77,57 @@ public class LibroDiarioView extends VBox {
 
         // Cabecera del formulario
         GridPane gridHeader = new GridPane();
-        gridHeader.setHgap(16);
-        gridHeader.setVgap(8);
+        gridHeader.setHgap(20);
+        gridHeader.setVgap(12);
 
         Label lblNumTitle = new Label("N° de Asiento:");
-        lblNumTitle.getStyleClass().add("form-label");
+        lblNumTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
         txtNumero = new TextField();
         txtNumero.setEditable(false);
-        txtNumero.setPrefWidth(90);
-        txtNumero.setStyle("-fx-font-weight: bold; -fx-background-color: #f1f5f9;");
+        txtNumero.setPrefWidth(120);
+        txtNumero.setMinHeight(35);
+        txtNumero.setStyle("-fx-font-weight: bold; -fx-background-color: #f1f5f9; -fx-font-size: 14px;");
         actualizarNumeroAsiento();
 
         Label lblFecTitle = new Label("Fecha del Asiento:");
-        lblFecTitle.getStyleClass().add("form-label");
+        lblFecTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
         dpFecha = new DatePicker(LocalDate.now());
-        dpFecha.setPrefWidth(160);
-
-        Label lblConTitle = new Label("Concepto General / Glosa de la Transacción:");
-        lblConTitle.getStyleClass().add("form-label");
-        txtConcepto = new TextField();
-        txtConcepto.setPromptText("Ej. Pago de factura a proveedores con transferencia bancaria...");
-        GridPane.setHgrow(txtConcepto, Priority.ALWAYS);
+        dpFecha.setPrefWidth(180);
+        dpFecha.setMinHeight(35);
+        dpFecha.setStyle("-fx-font-size: 14px;");
 
         gridHeader.add(lblNumTitle, 0, 0);
         gridHeader.add(txtNumero, 0, 1);
         gridHeader.add(lblFecTitle, 1, 0);
         gridHeader.add(dpFecha, 1, 1);
-        gridHeader.add(lblConTitle, 2, 0);
-        gridHeader.add(txtConcepto, 2, 1);
 
         // Barra de acciones para renglones
-        HBox barAcciones = new HBox(10);
+        HBox barAcciones = new HBox(15);
         barAcciones.setAlignment(Pos.CENTER_LEFT);
+        barAcciones.setPadding(new Insets(10, 0, 10, 0));
 
         List<Cuenta> cuentasPermitidas = cuentaDAO.listarPermitenMovimiento();
         ComboBox<Cuenta> cbCuenta = new ComboBox<>(FXCollections.observableArrayList(cuentasPermitidas));
         cbCuenta.setPromptText("Seleccione una cuenta del catálogo...");
-        cbCuenta.setPrefWidth(380);
-
-        TextField txtConceptoLinea = new TextField();
-        txtConceptoLinea.setPromptText("Detalle opcional del renglón");
-        txtConceptoLinea.setPrefWidth(220);
+        cbCuenta.setPrefWidth(450);
+        cbCuenta.setMinHeight(40);
+        cbCuenta.setStyle("-fx-font-size: 14px;");
 
         TextField txtMontoDebe = new TextField("0.00");
         txtMontoDebe.setPromptText("Debe");
-        txtMontoDebe.setPrefWidth(90);
+        txtMontoDebe.setPrefWidth(130);
+        txtMontoDebe.setMinHeight(40);
+        txtMontoDebe.setStyle("-fx-font-size: 14px;");
 
         TextField txtMontoHaber = new TextField("0.00");
         txtMontoHaber.setPromptText("Haber");
-        txtMontoHaber.setPrefWidth(90);
+        txtMontoHaber.setPrefWidth(130);
+        txtMontoHaber.setMinHeight(40);
+        txtMontoHaber.setStyle("-fx-font-size: 14px;");
 
-        Button btnAgregarLinea = new Button("➕ Agregar Renglón");
+        Button btnAgregarLinea = new Button("Agregar Renglón");
+        btnAgregarLinea.setMinSize(150, 40);
+        btnAgregarLinea.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-cursor: hand;");
         btnAgregarLinea.getStyleClass().add("btn-primary");
         btnAgregarLinea.setOnAction(e -> {
             Cuenta sel = cbCuenta.getValue();
@@ -148,31 +148,64 @@ public class LibroDiarioView extends VBox {
                 return;
             }
 
-            String conc = txtConceptoLinea.getText().trim();
-            if (conc.isEmpty()) {
-                conc = txtConcepto.getText().trim();
+            // Lógica para subcuentas y cuentas principales
+            if (sel.getCuentaPadre() != null && !sel.getCuentaPadre().isEmpty()) {
+                // Es una subcuenta, buscar la cuenta padre
+                Cuenta padre = cuentaDAO.buscarPorCodigo(sel.getCuentaPadre());
+                if (padre != null) {
+                    // Ver si el padre ya está en el detalle
+                    DetalleAsiento rowPadre = null;
+                    for (DetalleAsiento d : lineasAsiento) {
+                        if (d.getCuentaCodigo().equals(padre.getCodigo())) {
+                            rowPadre = d;
+                            break;
+                        }
+                    }
+                    if (rowPadre == null) {
+                        rowPadre = new DetalleAsiento(
+                            lineasAsiento.size() + 1,
+                            padre.getCodigo(),
+                            padre.getNombre(),
+                            "", // parcial vacío
+                            debeVal,
+                            haberVal
+                        );
+                        lineasAsiento.add(rowPadre);
+                    } else {
+                        rowPadre.setDebe(rowPadre.getDebe() + debeVal);
+                        rowPadre.setHaber(rowPadre.getHaber() + haberVal);
+                    }
+                    
+                    // Ahora agregamos la subcuenta con el valor en parcial (conceptoLinea se usa para guardar parcial en UI)
+                    String parcialStr = MONEDA.format(Math.max(debeVal, haberVal));
+                    DetalleAsiento rowSub = new DetalleAsiento(
+                        lineasAsiento.size() + 1,
+                        sel.getCodigo(),
+                        sel.getNombre(),
+                        parcialStr,
+                        0,
+                        0
+                    );
+                    lineasAsiento.add(rowSub);
+                } else {
+                    DetalleAsiento nuevo = new DetalleAsiento(lineasAsiento.size() + 1, sel.getCodigo(), sel.getNombre(), "", debeVal, haberVal);
+                    lineasAsiento.add(nuevo);
+                }
+            } else {
+                DetalleAsiento nuevo = new DetalleAsiento(lineasAsiento.size() + 1, sel.getCodigo(), sel.getNombre(), "", debeVal, haberVal);
+                lineasAsiento.add(nuevo);
             }
 
-            DetalleAsiento nuevo = new DetalleAsiento(
-                lineasAsiento.size() + 1,
-                sel.getCodigo(),
-                sel.getNombre(),
-                conc,
-                debeVal,
-                haberVal
-            );
-            lineasAsiento.add(nuevo);
             actualizarCuadre();
-
-            // Limpiar campos de renglón
             cbCuenta.setValue(null);
-            txtConceptoLinea.clear();
             txtMontoDebe.setText("0.00");
             txtMontoHaber.setText("0.00");
             cbCuenta.requestFocus();
         });
 
-        Button btnEliminarLinea = new Button("🗑️ Quitar Renglón");
+        Button btnEliminarLinea = new Button("Quitar Renglón");
+        btnEliminarLinea.setMinSize(150, 40);
+        btnEliminarLinea.setStyle("-fx-font-size: 14px; -fx-cursor: hand;");
         btnEliminarLinea.getStyleClass().add("btn-secondary");
         btnEliminarLinea.setOnAction(e -> {
             DetalleAsiento sel = tblDetalle.getSelectionModel().getSelectedItem();
@@ -189,7 +222,6 @@ public class LibroDiarioView extends VBox {
 
         barAcciones.getChildren().addAll(
             new Label("Cuenta:"), cbCuenta,
-            new Label("Detalle:"), txtConceptoLinea,
             new Label("Debe ($):"), txtMontoDebe,
             new Label("Haber ($):"), txtMontoHaber,
             btnAgregarLinea,
@@ -200,94 +232,126 @@ public class LibroDiarioView extends VBox {
         tblDetalle = new TableView<>();
         lineasAsiento = FXCollections.observableArrayList();
         tblDetalle.setItems(lineasAsiento);
+        tblDetalle.setStyle("-fx-font-size: 14px;");
         VBox.setVgrow(tblDetalle, Priority.ALWAYS);
 
         TableColumn<DetalleAsiento, Number> colRenglon = new TableColumn<>("#");
         colRenglon.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().getRenglon()));
-        colRenglon.setPrefWidth(45);
+        colRenglon.setPrefWidth(50);
 
         TableColumn<DetalleAsiento, String> colCod = new TableColumn<>("Código");
         colCod.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getCuentaCodigo()));
-        colCod.setPrefWidth(90);
+        colCod.setPrefWidth(120);
 
         TableColumn<DetalleAsiento, String> colNom = new TableColumn<>("Nombre de la Cuenta");
         colNom.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getCuentaNombre()));
-        colNom.setPrefWidth(260);
+        colNom.setPrefWidth(350);
 
-        TableColumn<DetalleAsiento, String> colLinCon = new TableColumn<>("Concepto / Referencia");
-        colLinCon.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getConceptoLinea()));
-        colLinCon.setPrefWidth(300);
+        TableColumn<DetalleAsiento, String> colParcial = new TableColumn<>("Parcial ($)");
+        colParcial.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getConceptoLinea()));
+        colParcial.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
+        colParcial.setPrefWidth(150);
 
         TableColumn<DetalleAsiento, String> colDebe = new TableColumn<>("Debe ($)");
-        colDebe.setCellValueFactory(c -> new SimpleStringProperty(MONEDA.format(c.getValue().getDebe())));
+        colDebe.setCellValueFactory(c -> {
+            double debe = c.getValue().getDebe();
+            return new SimpleStringProperty(debe > 0 ? MONEDA.format(debe) : "");
+        });
         colDebe.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
-        colDebe.setPrefWidth(120);
+        colDebe.setPrefWidth(150);
 
         TableColumn<DetalleAsiento, String> colHaber = new TableColumn<>("Haber ($)");
-        colHaber.setCellValueFactory(c -> new SimpleStringProperty(MONEDA.format(c.getValue().getHaber())));
+        colHaber.setCellValueFactory(c -> {
+            double haber = c.getValue().getHaber();
+            return new SimpleStringProperty(haber > 0 ? MONEDA.format(haber) : "");
+        });
         colHaber.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
-        colHaber.setPrefWidth(120);
+        colHaber.setPrefWidth(150);
 
-        tblDetalle.getColumns().addAll(colRenglon, colCod, colNom, colLinCon, colDebe, colHaber);
+        tblDetalle.getColumns().addAll(colRenglon, colCod, colNom, colParcial, colDebe, colHaber);
+
+        // Area de Comentario
+        HBox boxComentario = new HBox(15);
+        boxComentario.setAlignment(Pos.CENTER_LEFT);
+        boxComentario.setPadding(new Insets(10, 0, 10, 0));
+        Label lblComentario = new Label("Comentario del Asiento (Opcional):");
+        lblComentario.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        txtComentarioAsiento = new TextField();
+        txtComentarioAsiento.setPromptText("Ej. Pago de factura a proveedores con transferencia bancaria...");
+        txtComentarioAsiento.setMinHeight(40);
+        txtComentarioAsiento.setStyle("-fx-font-size: 14px;");
+        HBox.setHgrow(txtComentarioAsiento, Priority.ALWAYS);
+        boxComentario.getChildren().addAll(lblComentario, txtComentarioAsiento);
 
         // Panel de Cuadre y Validación Obligatoria de Partida Doble
         HBox panelCuadre = new HBox(20);
         panelCuadre.setAlignment(Pos.CENTER_LEFT);
-        panelCuadre.setPadding(new Insets(12, 16, 12, 16));
+        panelCuadre.setPadding(new Insets(15, 20, 15, 20));
         panelCuadre.setStyle("-fx-background-color: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-radius: 8px; -fx-background-radius: 8px;");
 
         lblTotalDebe = new Label("Total Debe: $0.00");
-        lblTotalDebe.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #1e293b;");
+        lblTotalDebe.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #1e293b;");
 
         lblTotalHaber = new Label("Total Haber: $0.00");
-        lblTotalHaber.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #1e293b;");
+        lblTotalHaber.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #1e293b;");
 
         lblDiferencia = new Label("Diferencia: $0.00");
-        lblDiferencia.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #dc2626;");
+        lblDiferencia.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #dc2626;");
 
-        lblBadgeCuadre = new Label("⚠ ASIENTO VACÍO");
+        lblBadgeCuadre = new Label("ASIENTO VACÍO");
         lblBadgeCuadre.getStyleClass().add("badge-descuadrado");
+        lblBadgeCuadre.setStyle("-fx-font-size: 14px; -fx-padding: 8 12;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        btnGuardar = new Button("💾 Guardar Asiento en Libro Diario");
+        btnGuardar = new Button("Guardar Asiento en Libro Diario");
+        btnGuardar.setMinSize(250, 45);
+        btnGuardar.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-cursor: hand;");
         btnGuardar.getStyleClass().add("btn-success");
         btnGuardar.setDisable(true); // Bloqueado por defecto hasta cumplir Partida Doble
         btnGuardar.setOnAction(e -> guardarAsiento());
 
-        Button btnLimpiar = new Button("🧹 Limpiar Formulario");
+        Button btnLimpiar = new Button("Limpiar Formulario");
+        btnLimpiar.setMinSize(180, 45);
+        btnLimpiar.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-cursor: hand;");
         btnLimpiar.getStyleClass().add("btn-secondary");
         btnLimpiar.setOnAction(e -> limpiarFormulario());
 
         panelCuadre.getChildren().addAll(lblTotalDebe, lblTotalHaber, lblDiferencia, lblBadgeCuadre, spacer, btnLimpiar, btnGuardar);
 
-        root.getChildren().addAll(gridHeader, new Separator(), barAcciones, tblDetalle, panelCuadre);
+        root.getChildren().addAll(gridHeader, new Separator(), barAcciones, tblDetalle, boxComentario, panelCuadre);
         actualizarCuadre();
         return root;
     }
 
     private VBox crearTabHistorial() {
-        VBox root = new VBox(12);
-        root.setPadding(new Insets(16));
+        VBox root = new VBox(15);
+        root.setPadding(new Insets(20));
         root.setStyle("-fx-background-color: #ffffff; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px;");
 
-        HBox topBar = new HBox(12);
+        HBox topBar = new HBox(15);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
         Label lblHist = new Label("Registro Cronológico de Transacciones (Libro Diario)");
-        lblHist.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        lblHist.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
         HBox.setHgrow(lblHist, Priority.ALWAYS);
 
-        Button btnExportarCSV = new Button("📊 Exportar Libro Diario a CSV");
+        Button btnExportarCSV = new Button("Exportar Libro Diario a CSV");
+        btnExportarCSV.setMinSize(200, 40);
+        btnExportarCSV.setStyle("-fx-font-size: 14px; -fx-cursor: hand;");
         btnExportarCSV.getStyleClass().add("btn-secondary");
         btnExportarCSV.setOnAction(e -> exportarHistorialCSV());
 
-        Button btnRefrescar = new Button("🔄 Refrescar");
+        Button btnRefrescar = new Button("Refrescar");
+        btnRefrescar.setMinSize(120, 40);
+        btnRefrescar.setStyle("-fx-font-size: 14px; -fx-cursor: hand;");
         btnRefrescar.getStyleClass().add("btn-secondary");
         btnRefrescar.setOnAction(e -> recargarHistorial());
 
-        Button btnEliminar = new Button("🗑️ Eliminar Asiento Seleccionado");
+        Button btnEliminar = new Button("Eliminar Asiento Seleccionado");
+        btnEliminar.setMinSize(220, 40);
+        btnEliminar.setStyle("-fx-font-size: 14px; -fx-cursor: hand;");
         btnEliminar.getStyleClass().add("btn-danger");
         btnEliminar.setOnAction(e -> {
             Asiento sel = tblHistorial.getSelectionModel().getSelectedItem();
@@ -312,42 +376,44 @@ public class LibroDiarioView extends VBox {
         tblHistorial = new TableView<>();
         listaHistorial = FXCollections.observableArrayList();
         tblHistorial.setItems(listaHistorial);
-        tblHistorial.setPrefHeight(260);
+        tblHistorial.setPrefHeight(280);
+        tblHistorial.setStyle("-fx-font-size: 14px;");
 
         TableColumn<Asiento, Number> colNum = new TableColumn<>("N° Asiento");
         colNum.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().getNumero()));
-        colNum.setPrefWidth(90);
+        colNum.setPrefWidth(100);
 
         TableColumn<Asiento, String> colFec = new TableColumn<>("Fecha");
         colFec.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getFecha()));
-        colFec.setPrefWidth(100);
+        colFec.setPrefWidth(120);
 
-        TableColumn<Asiento, String> colCon = new TableColumn<>("Concepto General");
+        TableColumn<Asiento, String> colCon = new TableColumn<>("Comentario");
         colCon.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getConcepto()));
-        colCon.setPrefWidth(420);
+        colCon.setPrefWidth(450);
 
         TableColumn<Asiento, String> colDeb = new TableColumn<>("Total Debe");
         colDeb.setCellValueFactory(c -> new SimpleStringProperty(MONEDA.format(c.getValue().getTotalDebe())));
         colDeb.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
-        colDeb.setPrefWidth(120);
+        colDeb.setPrefWidth(140);
 
         TableColumn<Asiento, String> colHab = new TableColumn<>("Total Haber");
         colHab.setCellValueFactory(c -> new SimpleStringProperty(MONEDA.format(c.getValue().getTotalHaber())));
         colHab.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
-        colHab.setPrefWidth(120);
+        colHab.setPrefWidth(140);
 
         TableColumn<Asiento, String> colUser = new TableColumn<>("Registrado Por");
         colUser.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getUsuarioNombre() != null ? c.getValue().getUsuarioNombre() : "Sistema"));
-        colUser.setPrefWidth(160);
+        colUser.setPrefWidth(180);
 
-        tblHistorial.getColumns().addAll(colNum, colFec, colFec, colCon, colDeb, colHab, colUser);
+        tblHistorial.getColumns().addAll(colNum, colFec, colCon, colDeb, colHab, colUser);
 
         // Tabla de detalle del asiento seleccionado en el historial
         Label lblDet = new Label("Detalle de Partidas del Asiento Seleccionado:");
-        lblDet.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #475569;");
+        lblDet.setStyle("-fx-font-weight: bold; -fx-font-size: 15px; -fx-text-fill: #475569; -fx-padding: 10 0 5 0;");
 
         tblDetalleHistorial = new TableView<>();
         VBox.setVgrow(tblDetalleHistorial, Priority.ALWAYS);
+        tblDetalleHistorial.setStyle("-fx-font-size: 14px;");
 
         TableColumn<DetalleAsiento, Number> dColReng = new TableColumn<>("Renglón");
         dColReng.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().getRenglon()));
@@ -355,27 +421,34 @@ public class LibroDiarioView extends VBox {
 
         TableColumn<DetalleAsiento, String> dColCod = new TableColumn<>("Código");
         dColCod.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getCuentaCodigo()));
-        dColCod.setPrefWidth(100);
+        dColCod.setPrefWidth(120);
 
         TableColumn<DetalleAsiento, String> dColNom = new TableColumn<>("Cuenta");
         dColNom.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getCuentaNombre()));
-        dColNom.setPrefWidth(260);
+        dColNom.setPrefWidth(320);
 
-        TableColumn<DetalleAsiento, String> dColCon = new TableColumn<>("Concepto");
-        dColCon.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getConceptoLinea()));
-        dColCon.setPrefWidth(350);
+        TableColumn<DetalleAsiento, String> dColParcial = new TableColumn<>("Parcial ($)");
+        dColParcial.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getConceptoLinea()));
+        dColParcial.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
+        dColParcial.setPrefWidth(140);
 
         TableColumn<DetalleAsiento, String> dColDeb = new TableColumn<>("Debe ($)");
-        dColDeb.setCellValueFactory(c -> new SimpleStringProperty(MONEDA.format(c.getValue().getDebe())));
+        dColDeb.setCellValueFactory(c -> {
+            double debe = c.getValue().getDebe();
+            return new SimpleStringProperty(debe > 0 ? MONEDA.format(debe) : "");
+        });
         dColDeb.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
-        dColDeb.setPrefWidth(120);
+        dColDeb.setPrefWidth(140);
 
         TableColumn<DetalleAsiento, String> dColHab = new TableColumn<>("Haber ($)");
-        dColHab.setCellValueFactory(c -> new SimpleStringProperty(MONEDA.format(c.getValue().getHaber())));
+        dColHab.setCellValueFactory(c -> {
+            double haber = c.getValue().getHaber();
+            return new SimpleStringProperty(haber > 0 ? MONEDA.format(haber) : "");
+        });
         dColHab.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
-        dColHab.setPrefWidth(120);
+        dColHab.setPrefWidth(140);
 
-        tblDetalleHistorial.getColumns().addAll(dColReng, dColCod, dColNom, dColCon, dColDeb, dColHab);
+        tblDetalleHistorial.getColumns().addAll(dColReng, dColCod, dColNom, dColParcial, dColDeb, dColHab);
 
         tblHistorial.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
@@ -389,10 +462,6 @@ public class LibroDiarioView extends VBox {
         return root;
     }
 
-    /**
-     * Validación obligatoria de Partida Doble en tiempo real:
-     * Si no cumple la partida doble, el botón de Guardar se BLOQUEA estrictamente.
-     */
     private void actualizarCuadre() {
         double d = 0.0;
         double h = 0.0;
@@ -413,17 +482,17 @@ public class LibroDiarioView extends VBox {
         boolean esValido = (diff < 0.005) && (d > 0) && (lineasAsiento.size() >= 2);
 
         if (lineasAsiento.isEmpty()) {
-            lblBadgeCuadre.setText("⚠ INGRESE PARTIDAS");
+            lblBadgeCuadre.setText("INGRESE PARTIDAS");
             lblBadgeCuadre.getStyleClass().add("badge-descuadrado");
             btnGuardar.setDisable(true);
             btnGuardar.setTooltip(new Tooltip("Agregue al menos dos renglones contables."));
         } else if (esValido) {
-            lblBadgeCuadre.setText("✔ PARTIDA DOBLE CUADRADA - LISTO PARA GUARDAR");
+            lblBadgeCuadre.setText("PARTIDA DOBLE CUADRADA - LISTO PARA GUARDAR");
             lblBadgeCuadre.getStyleClass().add("badge-cuadrado");
             btnGuardar.setDisable(false); // Desbloquear guardado
             btnGuardar.setTooltip(new Tooltip("El asiento cumple la Partida Doble y puede guardarse."));
         } else {
-            lblBadgeCuadre.setText("⚠ DESCUADRADO (Diferencia: " + MONEDA.format(diff) + ") - GUARDADO BLOQUEADO");
+            lblBadgeCuadre.setText("DESCUADRADO (Diferencia: " + MONEDA.format(diff) + ") - GUARDADO BLOQUEADO");
             lblBadgeCuadre.getStyleClass().add("badge-descuadrado");
             btnGuardar.setDisable(true); // BLOQUEO OBLIGATORIO SEGÚN REQUERIMIENTO
             btnGuardar.setTooltip(new Tooltip("Bloqueado: La suma del Debe debe ser exactamente igual a la suma del Haber."));
@@ -431,11 +500,9 @@ public class LibroDiarioView extends VBox {
     }
 
     private void guardarAsiento() {
-        String concepto = txtConcepto.getText().trim();
+        String concepto = txtComentarioAsiento.getText().trim();
         if (concepto.isEmpty()) {
-            mostrarAlerta(Alert.AlertType.WARNING, "Campo Requerido", "Debe ingresar el concepto general o glosa del asiento.");
-            txtConcepto.requestFocus();
-            return;
+            concepto = "Sin comentario";
         }
 
         LocalDate fecha = dpFecha.getValue();
@@ -464,7 +531,7 @@ public class LibroDiarioView extends VBox {
             boolean exito = libroDiarioDAO.registrarAsiento(asiento);
             if (exito) {
                 mostrarAlerta(Alert.AlertType.INFORMATION, "Asiento Registrado",
-                    "¡Asiento N° " + numero + " registrado exitosamente en el Libro Diario!\nLa mayorización ha sido actualizada en tiempo real.");
+                    "Asiento N° " + numero + " registrado exitosamente en el Libro Diario.\nLa mayorización ha sido actualizada en tiempo real.");
                 limpiarFormulario();
                 recargarHistorial();
             } else {
@@ -476,7 +543,7 @@ public class LibroDiarioView extends VBox {
     }
 
     private void limpiarFormulario() {
-        txtConcepto.clear();
+        txtComentarioAsiento.clear();
         lineasAsiento.clear();
         dpFecha.setValue(LocalDate.now());
         actualizarNumeroAsiento();

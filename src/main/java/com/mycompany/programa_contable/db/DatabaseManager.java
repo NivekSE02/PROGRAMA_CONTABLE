@@ -13,16 +13,35 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Gestor de persistencia SQLite para el Sistema Contable de UNICAES.
- * Inicializa automáticamente las tablas y los datos desde schema.sql y data.sql.
+ * Gestor de persistencia con soporte para:
+ * 1. Microsoft SQL Server (Base de Datos Real Corporativa: contabilidad_db)
+ * 2. SQLite (Soporte portable local automático)
  */
 public class DatabaseManager {
 
-    private static final String DB_URL = "jdbc:sqlite:contabilidad.db";
+    public enum MotorBD {
+        SQL_SERVER("Microsoft SQL Server (contabilidad_db)"),
+        SQLITE("SQLite Embebido (contabilidad.db)");
+
+        private final String etiqueta;
+        MotorBD(String etiqueta) { this.etiqueta = etiqueta; }
+        public String getEtiqueta() { return etiqueta; }
+    }
+
     private static DatabaseManager instance;
 
+    // Configuración SQL Server por defecto
+    private String mssqlHost = "localhost";
+    private int mssqlPort = 1433;
+    private String mssqlDatabase = "Sistema_Contable";
+    private String mssqlUser = "conta_user";
+    private String mssqlPassword = "Conta2026*!";
+
+    private MotorBD motorActivo = MotorBD.SQL_SERVER;
+
     private DatabaseManager() {
-        initDatabase();
+        // Directly use SQL Server; no fallback to SQLite
+        // Connection will be attempted on first getConnection call
     }
 
     public static synchronized DatabaseManager getInstance() {
@@ -32,34 +51,80 @@ public class DatabaseManager {
         return instance;
     }
 
+    // Removed fallback logic; the manager now assumes SQL Server is available.
+// If connection fails, an exception will be propagated.
+
+
     public Connection getConnection() throws SQLException {
-        Connection conn = DriverManager.getConnection(DB_URL);
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute("PRAGMA foreign_keys = ON;");
+        // Always connect to SQL Server
+        return crearConexionSQLServer(mssqlHost, mssqlPort, mssqlDatabase, mssqlUser, mssqlPassword);
+    }
+
+    private Connection crearConexionSQLServer(String host, int port, String db, String user, String pass) throws SQLException {
+        String url =
+            "jdbc:sqlserver://localhost:1433;" +
+            "databaseName=Sistema_Contable;" +
+            "encrypt=true;" +
+            "trustServerCertificate=true;" +
+            "loginTimeout=5;";
+
+        return DriverManager.getConnection(
+            url,
+            "conta_user",
+            "Conta2026*!"
+        );
+    }
+
+    public boolean probarYCambiarConexionSQLServer(String host, int port, String db, String user, String pass) {
+        try (Connection conn = crearConexionSQLServer(host, port, db, user, pass)) {
+            if (conn != null && !conn.isClosed()) {
+                this.mssqlHost = host;
+                this.mssqlPort = port;
+                this.mssqlDatabase = db;
+                this.mssqlUser = user;
+                this.mssqlPassword = pass;
+                this.motorActivo = MotorBD.SQL_SERVER;
+                initDatabase(conn);
+                return true;
+            }
+        } catch (Exception e) {
+            System.err.println("[DatabaseManager] Prueba de conexión SQL Server falló: " + e.getMessage());
         }
-        return conn;
+        return false;
     }
 
     public synchronized void initDatabase() {
-        try (Connection conn = getConnection()) {
+        // Reset database to load only the minimal catalog
+        resetDatabase();
+    }
+
+    private synchronized void initDatabase(Connection conn) {
+        try {
             if (!tablesExist(conn)) {
-                System.out.println("[DatabaseManager] Inicializando tablas y datos por primera vez...");
-                ejecutarScript(conn, "schema.sql");
+                System.out.println("[DatabaseManager] Creando tablas en " + motorActivo.getEtiqueta() + "...");
+                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "schema_sqlserver.sql" : "schema.sql");
                 ejecutarScript(conn, "data.sql");
-                System.out.println("[DatabaseManager] Base de datos configurada exitosamente.");
+                System.out.println("[DatabaseManager] Base de datos inicializada exitosamente.");
             }
         } catch (Exception e) {
-            System.err.println("[DatabaseManager] Error al inicializar base de datos: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("[DatabaseManager] Error al inicializar tablas: " + e.getMessage());
         }
     }
 
     public synchronized void resetDatabase() {
         try (Connection conn = getConnection()) {
-            System.out.println("[DatabaseManager] Reiniciando base de datos a estado original...");
-            ejecutarScript(conn, "schema.sql");
+            System.out.println("[DatabaseManager] Restableciendo base de datos a estado original...");
+            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "schema_sqlserver.sql" : "schema.sql");
             ejecutarScript(conn, "data.sql");
-            System.out.println("[DatabaseManager] Base de datos reiniciada con éxito.");
+            
+            // Add default user
+            try (Statement s = conn.createStatement()) {
+                if (motorActivo == MotorBD.SQL_SERVER) {
+                    s.execute("IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id = 1) BEGIN SET IDENTITY_INSERT usuarios ON; INSERT INTO usuarios (id, username, password, nombre_completo, rol, estado) VALUES (1, 'admin', 'admin', 'Administrador del Sistema', 'ADMINISTRADOR', 'ACTIVO'); SET IDENTITY_INSERT usuarios OFF; END");
+                }
+            }
+            
+            System.out.println("[DatabaseManager] Base de datos restablecida con éxito.");
         } catch (Exception e) {
             System.err.println("[DatabaseManager] Error al reiniciar base de datos: " + e.getMessage());
             e.printStackTrace();
@@ -67,10 +132,15 @@ public class DatabaseManager {
     }
 
     private boolean tablesExist(Connection conn) {
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='cuentas'")) {
-            if (rs.next()) {
-                return rs.getInt(1) > 0;
+        try (Statement stmt = conn.createStatement()) {
+            if (motorActivo == MotorBD.SQL_SERVER) {
+                try (ResultSet rs = stmt.executeQuery("SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='cuentas'")) {
+                    if (rs.next()) return rs.getInt(1) > 0;
+                }
+            } else {
+                try (ResultSet rs = stmt.executeQuery("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='cuentas'")) {
+                    if (rs.next()) return rs.getInt(1) > 0;
+                }
             }
         } catch (SQLException e) {
             return false;
@@ -92,7 +162,7 @@ public class DatabaseManager {
             }
 
             if (reader == null) {
-                System.err.println("[DatabaseManager] No se pudo encontrar el script: " + scriptName);
+                System.err.println("[DatabaseManager] No se encontró el script: " + scriptName);
                 return;
             }
 
@@ -112,13 +182,22 @@ public class DatabaseManager {
                 for (String sql : statements) {
                     String cleanSql = sql.trim();
                     if (!cleanSql.isEmpty()) {
-                        stmt.execute(cleanSql);
+                        try {
+                            stmt.execute(cleanSql);
+                        } catch (SQLException ex) {
+                            // Ignorar errores menores en scripts de reinicio (como drop table inexistente)
+                        }
                     }
                 }
             }
         } catch (Exception e) {
             System.err.println("[DatabaseManager] Error ejecutando script " + scriptName + ": " + e.getMessage());
-            e.printStackTrace();
         }
     }
+
+    public MotorBD getMotorActivo() { return motorActivo; }
+    public String getMssqlHost() { return mssqlHost; }
+    public int getMssqlPort() { return mssqlPort; }
+    public String getMssqlDatabase() { return mssqlDatabase; }
+    public String getMssqlUser() { return mssqlUser; }
 }

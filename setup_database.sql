@@ -68,3 +68,36 @@ CREATE TABLE detalle_asiento (
 CREATE INDEX idx_detalle_cuenta ON detalle_asiento(cuenta_codigo);
 CREATE INDEX idx_detalle_asiento ON detalle_asiento(asiento_id);
 CREATE INDEX idx_asiento_fecha ON asientos(fecha);
+-- Minimal chart of accounts (no test data)
+INSERT INTO cuentas (codigo, nombre, tipo, subtipo, nivel, naturaleza, cuenta_padre, permite_movimiento) VALUES
+('1', 'Activo', 'ACTIVO', NULL, 1, 'DEUDORA', NULL, 0),
+('1.1', 'Caja', 'ACTIVO', NULL, 2, 'DEUDORA', '1', 1),
+('1.2', 'Bancos', 'ACTIVO', NULL, 2, 'DEUDORA', '1', 1),
+('1.3', 'Cuentas por Cobrar', 'ACTIVO', NULL, 2, 'DEUDORA', '1', 0),
+('1.3.1', 'Clientes', 'ACTIVO', NULL, 3, 'DEUDORA', '1.3', 1),
+('1.4', 'Inventario', 'ACTIVO', NULL, 2, 'DEUDORA', '1', 1),
+('1.5', 'IVA Crédito Fiscal', 'ACTIVO', NULL, 2, 'DEUDORA', '1', 1),
+('1.6', 'Gastos Pagados por Anticipado', 'ACTIVO', NULL, 2, 'DEUDORA', '1', 0),
+('1.6.1', 'Alquiler', 'ACTIVO', NULL, 3, 'DEUDORA', '1.6', 1),
+('1.6.2', 'Papelería y Útiles', 'ACTIVO', NULL, 3, 'DEUDORA', '1.6', 1),
+('1.7', 'Propiedad, Planta y Equipo', 'ACTIVO', NULL, 2, 'DEUDORA', '1', 0),
+('1.7.1', 'Mobiliaria y Equipo de Oficina', 'ACTIVO', NULL, 3, 'DEUDORA', '1.7', 1),
+('1.7.2', 'Edificio', 'ACTIVO', NULL, 3, 'DEUDORA', '1.7', 1),
+('1.7.3', 'Equipo de Transporte', 'ACTIVO', NULL, 3, 'DEUDORA', '1.7', 1),
+('1.7.4', 'Equipo de Cómputo', 'ACTIVO', NULL, 3, 'DEUDORA', '1.7', 1),
+('2', 'Pasivo', 'PASIVO', NULL, 1, 'ACREEDORA', NULL, 0),
+('2.1', 'Cuentas por Pagar', 'PASIVO', NULL, 2, 'ACREEDORA', '2', 0),
+('2.1.1', 'Proveedores', 'PASIVO', NULL, 3, 'ACREEDORA', '2.1', 1),
+('2.1.2', 'Acreedores Varios', 'PASIVO', NULL, 3, 'ACREEDORA', '2.1', 1),
+('2.1.3', 'Préstamo Bancario', 'PASIVO', NULL, 3, 'ACREEDORA', '2.1', 1),
+('2.2', 'IVA Débito Fiscal', 'PASIVO', NULL, 2, 'ACREEDORA', '2', 1),
+('3', 'Patrimonio', 'PATRIMONIO', NULL, 1, 'ACREEDORA', NULL, 0),
+('3.1', 'Capital Social', 'PATRIMONIO', NULL, 2, 'ACREEDORA', '3', 1),
+('4', 'Ingresos', 'INGRESOS', NULL, 1, 'ACREEDORA', NULL, 0),
+('4.1', 'Ventas', 'INGRESOS', NULL, 2, 'ACREEDORA', '4', 1),
+('5', 'Costos / Compras', 'GASTOS', NULL, 1, 'DEUDORA', NULL, 0),
+('5.1', 'Compras', 'GASTOS', NULL, 2, 'DEUDORA', '5', 1),
+('6', 'Gastos', 'GASTOS', NULL, 1, 'DEUDORA', NULL, 0),
+('6.1', 'Gastos Financieros', 'GASTOS', NULL, 2, 'DEUDORA', '6', 1),
+('6.2', 'Comisiones', 'GASTOS', NULL, 2, 'DEUDORA', '6', 1),
+('6.3', 'Gastos Administrativos', 'GASTOS', NULL, 2, 'DEUDORA', '6', 1);

@@ -42,29 +42,23 @@ public class MainLayoutView extends BorderPane {
         estadoResultadosView = new EstadoResultadosView();
         catalogoView = new CatalogoCuentasView();
 
-        // 1. Barra Superior (Topbar)
+        // 1. Barra Superior Completa (Top Ribbon)
+        VBox topHeader = new VBox();
+        topHeader.getStyleClass().add("top-header");
+
+        // Fila 1: Logo, Título y Utilidades
         HBox topbar = new HBox(16);
         topbar.getStyleClass().add("topbar");
         topbar.setAlignment(Pos.CENTER_LEFT);
 
-        Label lblUni = new Label("🏛️ UNICAES");
-        lblUni.setStyle("-fx-font-weight: bold; -fx-font-size: 15px; -fx-text-fill: #6366f1;");
+        Label lblBrand = new Label("FINANCE PRO");
+        lblBrand.getStyleClass().add("brand-title");
 
-        Label lblTopTitle = new Label("SISTEMA CONTABLE AUTOMATIZADO - CICLO COMPLETO");
+        Label lblTopTitle = new Label("- Enterprise Accounting Edition");
         lblTopTitle.getStyleClass().add("topbar-title");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        // Chip de usuario logueado
-        Usuario u = SessionManager.getInstance().getUsuarioActual();
-        HBox userChip = new HBox(8);
-        userChip.getStyleClass().add("user-chip");
-        Label lblUser = new Label("👤 " + (u != null ? u.getNombreCompleto() : "Invitado"));
-        lblUser.setStyle("-fx-font-weight: bold; -fx-text-fill: #1e293b;");
-        Label lblRol = new Label(u != null ? u.getRol().getEtiqueta() : "");
-        lblRol.getStyleClass().add("badge-rol");
-        userChip.getChildren().addAll(lblUser, lblRol);
 
         // Botón de reinicio de demostración
         Button btnResetDemo = new Button("🔄 Datos de Demostración");
@@ -82,65 +76,62 @@ public class MainLayoutView extends BorderPane {
             });
         });
 
-        Button btnSalir = new Button("🚪 Salir");
-        btnSalir.getStyleClass().add("btn-danger");
+        Usuario u = SessionManager.getInstance().getUsuarioActual();
+        HBox userChip = new HBox(8);
+        userChip.getStyleClass().add("user-chip");
+        Label lblUser = new Label((u != null ? u.getNombreCompleto() : "Administrador"));
+        lblUser.setStyle("-fx-font-weight: bold; -fx-text-fill: #1e293b;");
+        userChip.getChildren().add(lblUser);
+
+        Button btnSalir = new Button("SALIR");
+        btnSalir.getStyleClass().add("btn-logout");
         btnSalir.setOnAction(e -> {
-            SessionManager.getInstance().cerrarSesion();
             if (onLogout != null) onLogout.run();
         });
 
-        topbar.getChildren().addAll(lblUni, new Label("|"), lblTopTitle, spacer, userChip, btnResetDemo, btnSalir);
-        setTop(topbar);
+        topbar.getChildren().addAll(lblBrand, lblTopTitle, spacer, btnResetDemo, userChip, btnSalir);
 
-        // 2. Barra Lateral de Navegación (Sidebar)
-        VBox sidebar = new VBox(6);
-        sidebar.getStyleClass().add("sidebar");
+        // Fila 2: Barra de Navegación (Ribbon estilo escritorio)
+        HBox ribbonBar = new HBox(8);
+        ribbonBar.getStyleClass().add("ribbon-bar");
+        ribbonBar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox sideHeader = new VBox(4);
-        sideHeader.getStyleClass().add("sidebar-title-container");
-        Label lblBrand = new Label("Módulo Contable");
-        lblBrand.getStyleClass().add("sidebar-app-title");
-        Label lblBrandSub = new Label("Universidad Católica de El Salvador");
-        lblBrandSub.getStyleClass().add("sidebar-app-subtitle");
-        sideHeader.getChildren().addAll(lblBrand, lblBrandSub);
-
-        Button btnNavDashboard = crearBotonNav("📊 Dashboard General", () -> {
+        Button btnNavDashboard = crearBotonNav("DASHBOARD", () -> {
             dashboardView.cargarDatos();
             mostrarVista(dashboardView);
         });
 
-        Button btnNavDiario = crearBotonNav("📝 Libro Diario (Asientos)", () -> {
+        Button btnNavDiario = crearBotonNav("LIBRO DIARIO", () -> {
             libroDiarioView.recargarHistorial();
             mostrarVista(libroDiarioView);
         });
 
-        Button btnNavMayor = crearBotonNav("⚖️ Libro Mayor (Cuentas T)", () -> {
+        Button btnNavMayor = crearBotonNav("LIBRO MAYOR", () -> {
             libroMayorView.recargarMayorizacion();
             mostrarVista(libroMayorView);
         });
 
-        Button btnNavBalanza = crearBotonNav("📑 Balanza de Comprobación", () -> {
+        Button btnNavBalanza = crearBotonNav("BALANZA COMPROBACIÓN", () -> {
             balanzaView.cargarDatos();
             mostrarVista(balanzaView);
         });
 
-        Button btnNavBalance = crearBotonNav("🏛️ Balance General (1=2+3)", () -> {
+        Button btnNavBalance = crearBotonNav("BALANCE GENERAL", () -> {
             balanceGeneralView.cargarDatos();
             mostrarVista(balanceGeneralView);
         });
 
-        Button btnNavResultados = crearBotonNav("📈 Estado de Resultados (5-4)", () -> {
+        Button btnNavResultados = crearBotonNav("ESTADO RESULTADOS", () -> {
             estadoResultadosView.cargarDatos();
             mostrarVista(estadoResultadosView);
         });
 
-        Button btnNavCatalogo = crearBotonNav("📚 Catálogo de Cuentas", () -> {
+        Button btnNavCatalogo = crearBotonNav("CATÁLOGO", () -> {
             catalogoView.recargarCuentas();
             mostrarVista(catalogoView);
         });
 
-        sidebar.getChildren().addAll(
-            sideHeader,
+        ribbonBar.getChildren().addAll(
             btnNavDashboard,
             btnNavDiario,
             btnNavMayor,
@@ -149,11 +140,13 @@ public class MainLayoutView extends BorderPane {
             btnNavResultados,
             btnNavCatalogo
         );
-        setLeft(sidebar);
+
+        topHeader.getChildren().addAll(topbar, ribbonBar);
+        setTop(topHeader);
 
         // 3. Contenedor Central
         contentPane = new StackPane();
-        contentPane.setStyle("-fx-background-color: #f8fafc;");
+        contentPane.getStyleClass().add("main-content-pane");
         setCenter(contentPane);
 
         // Iniciar en el Dashboard

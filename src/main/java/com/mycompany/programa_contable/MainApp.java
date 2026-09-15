@@ -18,29 +18,25 @@ public class MainApp extends Application {
     @Override
     public void start(Stage stage) {
         this.primaryStage = stage;
-        this.primaryStage.setTitle("UNICAES - Sistema Contable Automatizado (Módulo de Contabilidad)");
+        this.primaryStage.setTitle("FINANCE PRO - Sistema Contable");
 
         // 1. Inicializar persistencia SQLite y scripts DDL/DML
         DatabaseManager.getInstance().initDatabase();
 
-        // 2. Iniciar con la pantalla de inicio de sesión
-        mostrarLogin();
+        // 2. Iniciar directamente en el MainLayout
+        // SessionManager ya tiene un usuario mock (administrador) por defecto.
+        mostrarMain();
 
-        stage.setMinWidth(1150);
-        stage.setMinHeight(750);
+        stage.setMinWidth(1200);
+        stage.setMinHeight(800);
         stage.show();
     }
 
-    public void mostrarLogin() {
-        LoginView loginView = new LoginView(this::onLoginSuccess);
-        Scene scene = new Scene(loginView, 1200, 800);
-        aplicarEstilos(scene);
-        primaryStage.setScene(scene);
-        primaryStage.centerOnScreen();
-    }
-
-    private void onLoginSuccess(Usuario usuario) {
-        MainLayoutView mainLayout = new MainLayoutView(this::mostrarLogin);
+    private void mostrarMain() {
+        MainLayoutView mainLayout = new MainLayoutView(() -> {
+            // El logout simplemente cerrará la aplicación ahora que no hay login
+            System.exit(0);
+        });
         Scene scene = new Scene(mainLayout, 1280, 840);
         aplicarEstilos(scene);
         primaryStage.setScene(scene);

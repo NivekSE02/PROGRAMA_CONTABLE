@@ -27,10 +27,6 @@ public class ReportesFinancierosService {
         this.mayorizacionService = mayorizacionService;
     }
 
-    /**
-     * Generación automática del Estado de Resultados:
-     * Clasificación por dígito: 5 (Ingresos) - 4 (Costos y Gastos) = Utilidad
-     */
     public EstadoResultadosDTO generarEstadoResultados() {
         EstadoResultadosDTO estado = new EstadoResultadosDTO();
         List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacionCompleta();
@@ -38,14 +34,14 @@ public class ReportesFinancierosService {
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
             // Clasificación obligatoria por dígito:
-            if (cod.startsWith("5")) {
+            if (cod.startsWith("4")) {
                 // Ingresos: Saldo Acreedor (o Haber - Debe)
                 double saldoIngreso = m.getSaldoAcreedor();
                 if (saldoIngreso > 0) {
-                    boolean esOperacional = cod.startsWith("51");
+                    boolean esOperacional = cod.startsWith("41");
                     estado.agregarIngreso(m.getCodigo(), m.getNombre(), saldoIngreso, esOperacional);
                 }
-            } else if (cod.startsWith("4")) {
+            } else if (cod.startsWith("5") || cod.startsWith("6")) {
                 // Costos y Gastos: Saldo Deudor (o Debe - Haber)
                 double saldoGasto = m.getSaldoDeudor();
                 if (saldoGasto > 0) {

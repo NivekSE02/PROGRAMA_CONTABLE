@@ -48,7 +48,7 @@ public class EstadoResultadosView extends ScrollPane {
         lblInst.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
         Label lblTitulo = new Label("ESTADO DE RESULTADOS AUTOMÁTICO (PÉRDIDAS Y GANANCIAS)");
         lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        Label lblSub = new Label("Clasificación por Dígitos: Código 5 (Ingresos) - Código 4 (Costos y Gastos) = Utilidad");
+        Label lblSub = new Label("Clasificación por Dígitos: Código 4 (Ingresos) - Código 5/6 (Costos y Gastos) = Utilidad");
         lblSub.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
         titleBox.getChildren().addAll(lblInst, lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
@@ -63,7 +63,7 @@ public class EstadoResultadosView extends ScrollPane {
 
         topBar.getChildren().addAll(titleBox, btnImprimir, btnRefrescar);
 
-        // 2. Banner de Fórmula Obligatoria: 5 - 4 = Utilidad
+        // 2. Banner de Fórmula Obligatoria: 4 - 5/6 = Utilidad
         HBox banner = new HBox(12);
         banner.setAlignment(Pos.CENTER_LEFT);
         banner.setPadding(new Insets(14, 20, 14, 20));
@@ -73,8 +73,8 @@ public class EstadoResultadosView extends ScrollPane {
             banner.setStyle("-fx-background-color: #dcfce7; -fx-background-radius: 10px; -fx-border-color: #86efac; -fx-border-radius: 10px;");
             Label lblCheck = new Label("✔ RESULTADO POSITIVO (UTILIDAD NETA DEL EJERCICIO):");
             lblCheck.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #15803d;");
-            Label lblFormula = new Label("INGRESOS CÓDIGO 5 (" + MONEDA.format(estadoActual.getTotalIngresos()) +
-                                         ")  -  COSTOS Y GASTOS CÓDIGO 4 (" + MONEDA.format(estadoActual.getTotalCostosYGastos()) +
+            Label lblFormula = new Label("INGRESOS CÓDIGO 4 (" + MONEDA.format(estadoActual.getTotalIngresos()) +
+                                         ")  -  COSTOS/GASTOS CÓDIGO 5/6 (" + MONEDA.format(estadoActual.getTotalCostosYGastos()) +
                                          ")  =  UTILIDAD NETA: " + MONEDA.format(estadoActual.getUtilidadNeta()));
             lblFormula.setStyle("-fx-font-weight: bold; -fx-text-fill: #166534; -fx-font-family: 'Consolas', monospace;");
             banner.getChildren().addAll(lblCheck, lblFormula);
@@ -91,25 +91,25 @@ public class EstadoResultadosView extends ScrollPane {
         VBox cardReporte = new VBox(14);
         cardReporte.getStyleClass().add("card");
 
-        // Sección 1: Ingresos de Operación (Código 5)
-        Label lblIngTitle = new Label("5. INGRESOS DE OPERACIÓN");
+        // Sección 1: Ingresos de Operación (Código 4)
+        Label lblIngTitle = new Label("4. INGRESOS DE OPERACIÓN");
         lblIngTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #047857;");
         TableView<EstadoResultadosDTO.LineaReporte> tblIng = crearTablaLineas(estadoActual.getIngresosOperacion());
 
-        // Sección 2: Costo de Ventas (Código 41)
-        Label lblCosTitle = new Label("(-) 41. COSTO DE VENTAS");
+        // Sección 2: Costo de Ventas (Código 51)
+        Label lblCosTitle = new Label("(-) 51. COSTO DE VENTAS / COMPRAS");
         lblCosTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #9a3412;");
         TableView<EstadoResultadosDTO.LineaReporte> tblCos = crearTablaLineas(estadoActual.getCostosVenta());
 
         // Subtotal: Utilidad Bruta
         HBox rowBruta = crearFilaSubtotal("(=) UTILIDAD BRUTA EN VENTAS:", estadoActual.getUtilidadBruta(), "#1e3a8a", false);
 
-        // Sección 3: Gastos de Operación (42 y 43)
-        Label lblGasAdmTitle = new Label("(-) 42. GASTOS DE ADMINISTRACIÓN");
+        // Sección 3: Gastos de Operación (6)
+        Label lblGasAdmTitle = new Label("(-) 6. GASTOS DE OPERACIÓN Y ADMINISTRACIÓN");
         lblGasAdmTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #475569;");
         TableView<EstadoResultadosDTO.LineaReporte> tblGasAdm = crearTablaLineas(estadoActual.getGastosAdministracion());
 
-        Label lblGasVenTitle = new Label("(-) 43. GASTOS DE COMERCIALIZACIÓN Y VENTA");
+        Label lblGasVenTitle = new Label("(-) GASTOS DE COMERCIALIZACIÓN Y VENTA");
         lblGasVenTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #475569;");
         TableView<EstadoResultadosDTO.LineaReporte> tblGasVen = crearTablaLineas(estadoActual.getGastosVenta());
 
@@ -119,14 +119,14 @@ public class EstadoResultadosView extends ScrollPane {
         // Otros ingresos o gastos si existen
         VBox otrosBox = new VBox(6);
         if (!estadoActual.getOtrosIngresos().isEmpty()) {
-            otrosBox.getChildren().addAll(new Label("(+) 52. Otros Ingresos"), crearTablaLineas(estadoActual.getOtrosIngresos()));
+            otrosBox.getChildren().addAll(new Label("(+) Otros Ingresos"), crearTablaLineas(estadoActual.getOtrosIngresos()));
         }
         if (!estadoActual.getGastosFinancieros().isEmpty()) {
-            otrosBox.getChildren().addAll(new Label("(-) 44. Gastos Financieros"), crearTablaLineas(estadoActual.getGastosFinancieros()));
+            otrosBox.getChildren().addAll(new Label("(-) Gastos Financieros"), crearTablaLineas(estadoActual.getGastosFinancieros()));
         }
 
         // Fila Final: Utilidad Neta del Ejercicio
-        HBox rowNeta = crearFilaSubtotal("(=) UTILIDAD NETA DEL EJERCICIO (5 INGRESOS - 4 COSTOS/GASTOS):", estadoActual.getUtilidadNeta(), "#15803d", true);
+        HBox rowNeta = crearFilaSubtotal("(=) UTILIDAD NETA DEL EJERCICIO (4 INGRESOS - 5/6 COSTOS/GASTOS):", estadoActual.getUtilidadNeta(), "#15803d", true);
 
         cardReporte.getChildren().addAll(
             lblIngTitle, tblIng,
