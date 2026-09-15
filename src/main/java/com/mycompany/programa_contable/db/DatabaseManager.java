@@ -94,8 +94,11 @@ public class DatabaseManager {
     }
 
     public synchronized void initDatabase() {
-        // Reset database to load only the minimal catalog
-        resetDatabase();
+        try (Connection conn = getConnection()) {
+            initDatabase(conn);
+        } catch (SQLException e) {
+            System.err.println("[DatabaseManager] Error al inicializar base de datos: " + e.getMessage());
+        }
     }
 
     private synchronized void initDatabase(Connection conn) {
