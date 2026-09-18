@@ -117,8 +117,21 @@ public class MayorizacionService {
                 if (rs.next()) {
                     String cod = rs.getString("codigo");
                     String nom = rs.getString("nombre");
-                    TipoCuenta tipo = TipoCuenta.desdeCodigo(cod);
-                    NaturalezaCuenta nat = tipo.getNaturalezaPorDefecto();
+                    
+                    TipoCuenta tipo;
+                    try {
+                        tipo = TipoCuenta.valueOf(rs.getString("tipo"));
+                    } catch (Exception e) {
+                        tipo = TipoCuenta.desdeCodigo(cod);
+                    }
+                    
+                    NaturalezaCuenta nat;
+                    try {
+                        nat = NaturalezaCuenta.valueOf(rs.getString("naturaleza"));
+                    } catch (Exception e) {
+                        nat = tipo.getNaturalezaPorDefecto();
+                    }
+                    
                     mayor = new MayorCuenta(cod, nom, tipo, nat);
                 }
             }

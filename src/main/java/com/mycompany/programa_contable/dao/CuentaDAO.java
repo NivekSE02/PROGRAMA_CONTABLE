@@ -109,6 +109,7 @@ public class CuentaDAO {
             ps.setString(2, c.getTipo().name());
             ps.setString(3, c.getSubtipo());
             ps.setInt(4, c.getNivel());
+            ps.setString(5, c.getNaturaleza().name());
             ps.setString(6, c.getCuentaPadre());
             ps.setInt(7, c.isPermiteMovimiento() ? 1 : 0);
             ps.setString(8, c.getCodigo());

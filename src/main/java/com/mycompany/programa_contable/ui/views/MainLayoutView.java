@@ -24,6 +24,9 @@ public class MainLayoutView extends BorderPane {
     private BalanceGeneralView balanceGeneralView;
     private EstadoResultadosView estadoResultadosView;
     private CatalogoCuentasView catalogoView;
+    
+    // 1. DECLARAMOS LA NUEVA VISTA
+    private KardexView kardexView;
 
     private Button btnActive;
 
@@ -41,6 +44,7 @@ public class MainLayoutView extends BorderPane {
         balanceGeneralView = new BalanceGeneralView();
         estadoResultadosView = new EstadoResultadosView();
         catalogoView = new CatalogoCuentasView();
+        kardexView = new KardexView();
 
         // 1. Barra Superior Completa (Top Ribbon)
         VBox topHeader = new VBox();
@@ -91,7 +95,6 @@ public class MainLayoutView extends BorderPane {
 
         topbar.getChildren().addAll(lblBrand, lblTopTitle, spacer, btnResetDemo, userChip, btnSalir);
 
-        // Fila 2: Barra de Navegación (Ribbon estilo escritorio)
         HBox ribbonBar = new HBox(8);
         ribbonBar.getStyleClass().add("ribbon-bar");
         ribbonBar.setAlignment(Pos.CENTER_LEFT);
@@ -126,6 +129,11 @@ public class MainLayoutView extends BorderPane {
             mostrarVista(estadoResultadosView);
         });
 
+        Button btnNavKardex = crearBotonNav("KÁRDEX", () -> {
+            kardexView.cargarDatos();
+            mostrarVista(kardexView);
+        });
+
         Button btnNavCatalogo = crearBotonNav("CATÁLOGO", () -> {
             catalogoView.recargarCuentas();
             mostrarVista(catalogoView);
@@ -136,8 +144,9 @@ public class MainLayoutView extends BorderPane {
             btnNavDiario,
             btnNavMayor,
             btnNavBalanza,
-            btnNavBalance,
+            btnNavKardex, 
             btnNavResultados,
+            btnNavBalance,
             btnNavCatalogo
         );
 
@@ -179,5 +188,6 @@ public class MainLayoutView extends BorderPane {
         balanceGeneralView.cargarDatos();
         estadoResultadosView.cargarDatos();
         catalogoView.recargarCuentas();
+        kardexView.cargarDatos();
     }
 }

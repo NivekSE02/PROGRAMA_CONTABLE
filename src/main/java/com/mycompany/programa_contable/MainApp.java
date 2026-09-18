@@ -44,7 +44,7 @@ public class MainApp extends Application {
     }
 
     private void aplicarEstilos(Scene scene) {
-        URL cssUrl = getClass().getResource("/com/mycompany/programa_contable/css/styles.css");
+        URL cssUrl = getClass().getResource("/com/mycompany/programa_contable/css/styles.css");;;
         if (cssUrl != null) {
             scene.getStylesheets().add(cssUrl.toExternalForm());
         } else {

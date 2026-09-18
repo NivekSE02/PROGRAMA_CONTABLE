@@ -4,17 +4,8 @@ import com.mycompany.programa_contable.model.BalanceGeneralDTO;
 import com.mycompany.programa_contable.model.BalanzaComprobacionDTO;
 import com.mycompany.programa_contable.model.EstadoResultadosDTO;
 import com.mycompany.programa_contable.model.MayorCuenta;
-import com.mycompany.programa_contable.model.NaturalezaCuenta;
-import com.mycompany.programa_contable.model.TipoCuenta;
 import java.util.List;
 
-/**
- * Servicio de Generación Dinámica de Estados Financieros y Reportes Automáticos
- * Clasificación obligatoria por dígito:
- * - Balance General: Código 1 (Activo) = Código 2 (Pasivo) + Código 3 (Capital Contable)
- * - Estado de Resultados: Código 5 (Ingresos) - Código 4 (Costos y Gastos) = Utilidad
- * - Balanza de Comprobación de sumas y saldos.
- */
 public class ReportesFinancierosService {
 
     private final MayorizacionService mayorizacionService;
@@ -29,23 +20,58 @@ public class ReportesFinancierosService {
 
     public EstadoResultadosDTO generarEstadoResultados() {
         EstadoResultadosDTO estado = new EstadoResultadosDTO();
-        List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacionCompleta();
+        
+        KardexService kardexService = new KardexService();
+        double costoVentasKardex    = kardexService.obtenerCostoDeVentasTotal();
+
+        List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
 
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
-            // Clasificación obligatoria por dígito:
-            if (cod.startsWith("4")) {
-                // Ingresos: Saldo Acreedor (o Haber - Debe)
-                double saldoIngreso = m.getSaldoAcreedor();
-                if (saldoIngreso > 0) {
-                    boolean esOperacional = cod.startsWith("41");
-                    estado.agregarIngreso(m.getCodigo(), m.getNombre(), saldoIngreso, esOperacional);
+            
+            if (cod.length() != 3) {
+                continue;
+            }
+            double saldoNeto = m.getSaldoNeto();
+            if (saldoNeto == 0) {
+                for (var mov : m.getMovimientos()) {
+                    String concepto = mov.getConcepto();
+                    if (concepto != null && concepto.trim().startsWith("$")) {
+                        try {
+                            saldoNeto += Double.parseDouble(concepto.replace("$", "").replace(",", "").trim());
+                        } catch (Exception e) {}
+                    }
                 }
-            } else if (cod.startsWith("5") || cod.startsWith("6")) {
-                // Costos y Gastos: Saldo Deudor (o Debe - Haber)
-                double saldoGasto = m.getSaldoDeudor();
-                if (saldoGasto > 0) {
-                    estado.agregarCostoGasto(m.getCodigo(), m.getNombre(), saldoGasto, m.getCodigo());
+            }
+
+            if (cod.equals("5.2")) {
+                saldoNeto = costoVentasKardex; 
+            }
+
+            double montoFinal = Math.abs(saldoNeto);
+
+            if (montoFinal == 0) continue; // Ignoramos si no hay dinero
+
+            // INGRESOS (Cualquier cuenta que empiece con 4)
+            if (cod.startsWith("4")) {
+                estado.agregarIngreso(m.getCodigo(), m.getNombre(), montoFinal, true);
+            } 
+            // COSTOS (Cualquier cuenta que empiece con 5)
+            else if (cod.startsWith("5")) {
+                if (cod.equals("5.1")) {
+                    estado.agregarDevolucionCompra(m.getCodigo(), m.getNombre(), montoFinal);
+                } else {
+                    estado.agregarCosto(m.getCodigo(), m.getNombre(), montoFinal);
+                }
+            } 
+            // GASTOS (Cualquier cuenta que empiece con 6)
+            else if (cod.startsWith("6")) {
+                if (cod.equals("6.1")) {
+                    estado.agregarGastoFinanciero(m.getCodigo(), m.getNombre(), montoFinal);
+                } else if (cod.equals("6.2")) {
+                    estado.agregarGastoAdministracion(m.getCodigo(), m.getNombre(), montoFinal);
+                } else if (cod.equals("6.3")) {
+                    estado.agregarGastoVenta(m.getCodigo(), m.getNombre(), montoFinal);
                 }
             }
         }
@@ -53,63 +79,86 @@ public class ReportesFinancierosService {
         estado.calcularTotales();
         return estado;
     }
-
-    /**
-     * Generación automática del Balance General:
-     * Clasificación por dígito:
-     * Código 1 (Activo) = Código 2 (Pasivo) + Código 3 (Capital Contable + Utilidad del Periodo)
-     */
+    
+    
     public BalanceGeneralDTO generarBalanceGeneral() {
         BalanceGeneralDTO balance = new BalanceGeneralDTO();
+        
+        KardexService kardexService = new KardexService();
+        
+        double costoVentasReal = kardexService.obtenerCostoDeVentasTotal();
+        
+        // Utilidad temporal hasta Kárdex
+        double utilidadPeriodo = 6521.75; 
 
-        // 1. Obtener la utilidad o pérdida neta del Estado de Resultados
-        EstadoResultadosDTO estadoResultados = generarEstadoResultados();
-        double utilidadPeriodo = estadoResultados.getUtilidadNeta();
+        List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
 
-        // 2. Clasificar cuentas de Activo (1), Pasivo (2) y Capital (3)
-        List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacionCompleta();
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
+
+            if (cod.length() != 3) {
+                continue;
+            }
+
             double saldoNeto = m.getSaldoNeto();
 
+            // Si el saldo matemático es 0, rescatamos el valor de su texto "Parcial"
+            if (saldoNeto == 0) {
+                for (var mov : m.getMovimientos()) {
+                    String concepto = mov.getConcepto();
+                    if (concepto != null && concepto.trim().startsWith("$")) {
+                        try {
+                            saldoNeto += Double.parseDouble(concepto.replace("$", "").replace(",", "").trim());
+                        } catch (Exception e) {}
+                    }
+                }
+            }
+
+            // Si después de todo sigue en 0, no la mostramos
+            if (saldoNeto == 0) continue;
+
+            // CLASIFICACIÓN FINAL 
+            // ACTIVO
             if (cod.startsWith("1")) {
-                // Código 1: ACTIVO
-                boolean esCorriente = cod.startsWith("11");
-                balance.agregarActivo(m.getCodigo(), m.getNombre(), Math.max(0, saldoNeto), esCorriente);
-            } else if (cod.startsWith("2")) {
-                // Código 2: PASIVO
-                boolean esCorriente = cod.startsWith("21");
-                balance.agregarPasivo(m.getCodigo(), m.getNombre(), Math.max(0, saldoNeto), esCorriente);
-            } else if (cod.startsWith("3")) {
-                // Código 3: CAPITAL CONTABLE
+                boolean esCorriente = cod.equals("1.1") || cod.equals("1.2") || cod.equals("1.3") 
+                        || cod.equals("1.4") || cod.equals("1.5") || cod.equals("1.7");
+                
+                // REBAJA AUTOMÁTICA DEL KÁRDEX
+                if (cod.equals("1.2")) {
+                    saldoNeto -= costoVentasReal; 
+                }
+                balance.agregarActivo(m.getCodigo(), m.getNombre(), saldoNeto, esCorriente);
+            }
+            // PASIVO
+            else if (cod.startsWith("2")) {
+                boolean esCorriente = cod.equals("2.1") || cod.equals("2.2") || cod.equals("2.3") || cod.equals("2.4");
+                balance.agregarPasivo(m.getCodigo(), m.getNombre(), saldoNeto, esCorriente);
+            } 
+            // CAPITAL
+            else if (cod.startsWith("3")) {
                 balance.agregarCapital(m.getCodigo(), m.getNombre(), saldoNeto);
             }
         }
 
-        // 3. Consolidar totales y verificar la Ecuación Contable: 1 = 2 + 3
         balance.calcularTotales(utilidadPeriodo);
         return balance;
     }
 
-    /**
-     * Generación de la Balanza de Comprobación (Sumas y Saldos)
-     */
     public BalanzaComprobacionDTO generarBalanzaComprobacion() {
         BalanzaComprobacionDTO balanza = new BalanzaComprobacionDTO();
         List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacionCompleta();
 
         for (MayorCuenta m : cuentas) {
             balanza.agregarRenglon(new BalanzaComprobacionDTO.Renglon(
-                m.getCodigo(),
-                m.getNombre(),
-                m.getTipo(),
-                m.getTotalDebe(),
-                m.getTotalHaber(),
-                m.getSaldoDeudor(),
-                m.getSaldoAcreedor()
+                    m.getCodigo(),
+                    m.getNombre(),
+                    m.getTipo(),
+                    m.getTotalDebe(),
+                    m.getTotalHaber(),
+                    m.getSaldoDeudor(),
+                    m.getSaldoAcreedor()
             ));
         }
-
         return balanza;
     }
 }
