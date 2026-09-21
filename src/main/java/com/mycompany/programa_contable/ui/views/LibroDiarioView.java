@@ -129,6 +129,7 @@ public class LibroDiarioView extends VBox {
         btnAgregarLinea.setMinSize(150, 40);
         btnAgregarLinea.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-cursor: hand;");
         btnAgregarLinea.getStyleClass().add("btn-primary");
+        
         btnAgregarLinea.setOnAction(e -> {
             Cuenta sel = cbCuenta.getValue();
             if (sel == null) {
@@ -139,6 +140,103 @@ public class LibroDiarioView extends VBox {
             double debeVal = parseMonto(txtMontoDebe.getText());
             double haberVal = parseMonto(txtMontoHaber.getText());
 
+            String codigoCuenta = sel.getCodigo();
+
+            // =================================================================
+            // 1. AUTOMATIZACIÓN INTELIGENTE DE IVA EN COMPRAS Y ACTIVOS FIJOS (Al Debe)
+            // Cubre Compras (5.4) y Activos No Corrientes (1.5, 1.6, etc.)
+            // =================================================================
+            boolean esCompraOActivoConIva = ("5.4".equals(codigoCuenta) || codigoCuenta.startsWith("5.4") || 
+                                             codigoCuenta.startsWith("1.5") || codigoCuenta.startsWith("1.6") || 
+                                             codigoCuenta.startsWith("1.7") );
+
+            if (esCompraOActivoConIva && debeVal > 0) {
+                // El usuario ingresó el total con IVA incluido, lo desglosamos automáticamente:
+                double valorNeto = redondear(debeVal / 1.13); 
+                double ivaCredito = redondear(debeVal - valorNeto);     
+
+                // 1. Cuenta Principal / Subcuenta seleccionada al Debe por su valor neto sin IVA
+                lineasAsiento.add(new DetalleAsiento(
+                    lineasAsiento.size() + 1, codigoCuenta, sel.getNombre(), MONEDA.format(valorNeto), valorNeto, 0.0
+                ));
+
+                // 2. Cuenta de IVA Crédito Fiscal (Código "1.4") al Debe por el monto del IVA
+                lineasAsiento.add(new DetalleAsiento(
+                    lineasAsiento.size() + 1, "1.4", "IVA Crédito Fiscal", MONEDA.format(ivaCredito), ivaCredito, 0.0
+                ));
+
+                actualizarCuadre();
+                cbCuenta.setValue(null);
+                txtMontoDebe.setText("0.00");
+                txtMontoHaber.setText("0.00");
+                cbCuenta.requestFocus();
+                return; // Sale para evitar duplicar renglones manuales
+            }
+            // =================================================================
+
+            // =================================================================
+            // 2. AUTOMATIZACIÓN INTELIGENTE DE IVA EN VENTAS (Al Haber)
+            // =================================================================
+            if ("4.1".equals(codigoCuenta) && haberVal > 0) {
+                double valorNetoVenta = redondear(haberVal / 1.13); 
+                double ivaDebito = redondear(haberVal - valorNetoVenta);     
+
+                // 1. Cuenta Padre: Ingresos (Código "4") al Haber por el total neto
+                lineasAsiento.add(new DetalleAsiento(
+                    lineasAsiento.size() + 1, "4", "Ingresos", "", 0.0, valorNetoVenta
+                ));
+
+                // 2. Subcuenta: Ventas (Código "4.1") con su parcial
+                lineasAsiento.add(new DetalleAsiento(
+                    lineasAsiento.size() + 1, "4.1", "Ventas", MONEDA.format(valorNetoVenta), 0.0, 0.0
+                ));
+
+                // 3. Cuenta Padre: Pasivo / Impuestos (Código "2") al Haber por el IVA
+                lineasAsiento.add(new DetalleAsiento(
+                    lineasAsiento.size() + 1, "2", "Pasivo", "", 0.0, ivaDebito
+                ));
+
+                // 4. Subcuenta: IVA Débito Fiscal (Código "2.3") con su parcial
+                lineasAsiento.add(new DetalleAsiento(
+                    lineasAsiento.size() + 1, "2.3", "IVA Débito Fiscal", MONEDA.format(ivaDebito), 0.0, 0.0
+                ));
+
+                actualizarCuadre();
+                cbCuenta.setValue(null);
+                txtMontoDebe.setText("0.00");
+                txtMontoHaber.setText("0.00");
+                cbCuenta.requestFocus();
+                return; 
+            }
+            // =================================================================
+            // 3. AUTOMATIZACIÓN INTELIGENTE DE IVA EN GASTOS FINANCIEROS / COMISIONES (6.1)
+            // =================================================================
+            boolean esGastoFinancieroConIva = ("6.1".equals(codigoCuenta) || codigoCuenta.startsWith("6.1"));
+
+            if (esGastoFinancieroConIva && debeVal > 0) {
+                // Si ingresas el valor base de la comisión, calculamos su 13% de IVA automáticamente:
+                double valorComisionNeto = redondear(debeVal); 
+                double ivaComision = redondear(valorComisionNeto * 0.13);     
+
+                // 1. Gasto Financiero al Debe por el valor neto
+                lineasAsiento.add(new DetalleAsiento(
+                    lineasAsiento.size() + 1, codigoCuenta, sel.getNombre(), MONEDA.format(valorComisionNeto), valorComisionNeto, 0.0
+                ));
+
+                // 2. IVA Crédito Fiscal (Código "1.4") al Debe por el 13%
+                lineasAsiento.add(new DetalleAsiento(
+                    lineasAsiento.size() + 1, "1.4", "IVA Crédito Fiscal", MONEDA.format(ivaComision), ivaComision, 0.0
+                ));
+
+                actualizarCuadre();
+                cbCuenta.setValue(null);
+                txtMontoDebe.setText("0.00");
+                txtMontoHaber.setText("0.00");
+                cbCuenta.requestFocus();
+                return; 
+            }
+            // =================================================================
+            
             if (debeVal == 0 && haberVal == 0) {
                 mostrarAlerta(Alert.AlertType.WARNING, "Monto Inválido", "Debe ingresar un valor en el Debe o en el Haber.");
                 return;
@@ -148,12 +246,10 @@ public class LibroDiarioView extends VBox {
                 return;
             }
 
-            // Lógica para subcuentas y cuentas principales
+            // Lógica normal para el resto de cuentas manuales...
             if (sel.getCuentaPadre() != null && !sel.getCuentaPadre().isEmpty()) {
-                // Es una subcuenta, buscar la cuenta padre
                 Cuenta padre = cuentaDAO.buscarPorCodigo(sel.getCuentaPadre());
                 if (padre != null) {
-                    // Ver si el padre ya está en el detalle
                     DetalleAsiento rowPadre = null;
                     for (DetalleAsiento d : lineasAsiento) {
                         if (d.getCuentaCodigo().equals(padre.getCodigo())) {
@@ -166,7 +262,7 @@ public class LibroDiarioView extends VBox {
                             lineasAsiento.size() + 1,
                             padre.getCodigo(),
                             padre.getNombre(),
-                            "", // parcial vacío
+                            "", 
                             debeVal,
                             haberVal
                         );
@@ -176,7 +272,6 @@ public class LibroDiarioView extends VBox {
                         rowPadre.setHaber(rowPadre.getHaber() + haberVal);
                     }
                     
-                    // Ahora agregamos la subcuenta con el valor en parcial (conceptoLinea se usa para guardar parcial en UI)
                     String parcialStr = MONEDA.format(Math.max(debeVal, haberVal));
                     DetalleAsiento rowSub = new DetalleAsiento(
                         lineasAsiento.size() + 1,

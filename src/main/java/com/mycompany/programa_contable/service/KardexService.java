@@ -105,4 +105,58 @@ public class KardexService {
         
         return reporte;
     }
+    /**
+     * Registra un movimiento de Kárdex utilizando una conexión activa existente 
+     * (ideal para mantener la atomicidad de la transacción ACID del Libro Diario).
+     */
+    public void registrarMovimientoConConexión(Connection conn, int productoId, String fecha, String tipoMovimiento, int cantidad, double costoUnitario, int asientoId) throws Exception {
+        // 1. Obtener el último saldo de cantidad y valor registrado en el Kárdex para este producto
+        int ultimoSaldoCantidad = 0;
+        double ultimoSaldoValor = 0.0;
+        
+        String sqlSaldo = "SELECT TOP 1 saldo_cantidad, saldo_valor FROM kardex WHERE producto_id = ? ORDER BY fecha DESC, id DESC";
+        try (PreparedStatement psSaldo = conn.prepareStatement(sqlSaldo)) {
+            psSaldo.setInt(1, productoId);
+            try (ResultSet rs = psSaldo.executeQuery()) {
+                if (rs.next()) {
+                    ultimoSaldoCantidad = rs.getInt("saldo_cantidad");
+                    ultimoSaldoValor = rs.getDouble("saldo_valor");
+                }
+            }
+        }
+
+        // 2. Calcular los nuevos saldos según sea Entrada o Salida
+        double costoTotalMovimiento = cantidad * costoUnitario;
+        int nuevoSaldoCantidad;
+        double nuevoSaldoValor;
+
+        if ("ENTRADA".equalsIgnoreCase(tipoMovimiento)) {
+            nuevoSaldoCantidad = ultimoSaldoCantidad + cantidad;
+            nuevoSaldoValor = redondear(ultimoSaldoValor + costoTotalMovimiento);
+        } else { // SALIDA
+            nuevoSaldoCantidad = ultimoSaldoCantidad - cantidad;
+            nuevoSaldoValor = redondear(ultimoSaldoValor - costoTotalMovimiento);
+        }
+
+        // 3. Insertar el movimiento incluyendo los saldos obligatorios
+        String sql = "INSERT INTO kardex (producto_id, fecha, tipo_movimiento, cantidad, costo_unitario, costo_total, saldo_cantidad, saldo_valor, asiento_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, productoId);
+            ps.setString(2, fecha);
+            ps.setString(3, tipoMovimiento);
+            ps.setInt(4, cantidad);
+            ps.setDouble(5, costoUnitario);
+            ps.setDouble(6, costoTotalMovimiento);
+            ps.setInt(7, nuevoSaldoCantidad);
+            ps.setDouble(8, nuevoSaldoValor);
+            ps.setInt(9, asientoId);
+            
+            ps.executeUpdate();
+        }
+    }
+
+    private double redondear(double val) {
+        return java.math.BigDecimal.valueOf(val).setScale(2, java.math.RoundingMode.HALF_UP).doubleValue();
+    }
 }

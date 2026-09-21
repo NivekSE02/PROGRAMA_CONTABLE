@@ -24,9 +24,8 @@ public class MainLayoutView extends BorderPane {
     private BalanceGeneralView balanceGeneralView;
     private EstadoResultadosView estadoResultadosView;
     private CatalogoCuentasView catalogoView;
-    
-    // 1. DECLARAMOS LA NUEVA VISTA
     private KardexView kardexView;
+    private ConfiguracionView configuracionView;
 
     private Button btnActive;
 
@@ -45,6 +44,7 @@ public class MainLayoutView extends BorderPane {
         estadoResultadosView = new EstadoResultadosView();
         catalogoView = new CatalogoCuentasView();
         kardexView = new KardexView();
+        configuracionView = new ConfiguracionView();
 
         // 1. Barra Superior Completa (Top Ribbon)
         VBox topHeader = new VBox();
@@ -139,6 +139,10 @@ public class MainLayoutView extends BorderPane {
             mostrarVista(catalogoView);
         });
 
+        Button btnNavConfig = crearBotonNav("CONFIGURACIÓN", () -> {
+            mostrarVista(configuracionView);
+        });
+        
         ribbonBar.getChildren().addAll(
             btnNavDashboard,
             btnNavDiario,
@@ -147,7 +151,8 @@ public class MainLayoutView extends BorderPane {
             btnNavKardex, 
             btnNavResultados,
             btnNavBalance,
-            btnNavCatalogo
+            btnNavCatalogo,
+            btnNavConfig
         );
 
         topHeader.getChildren().addAll(topbar, ribbonBar);
