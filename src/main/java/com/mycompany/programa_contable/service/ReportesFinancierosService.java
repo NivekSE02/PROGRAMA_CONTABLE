@@ -29,23 +29,12 @@ public class ReportesFinancierosService {
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
             
-            // Permitimos cuentas de 3 dígitos O subcuentas operativas de gastos (ej. 6.1.1)
-            boolean esCuentaValida = (cod.length() == 3) || (cod.startsWith("6.1") && cod.length() > 3);
+            // Permitimos SÓLO cuentas de Mayor (3 dígitos / Nivel 2)
+            boolean esCuentaValida = (cod.length() == 3);
             if (!esCuentaValida) {
                 continue;
             }
             double saldoNeto = m.getSaldoNeto();
-            if (saldoNeto == 0) {
-                for (var mov : m.getMovimientos()) {
-                    String concepto = mov.getConcepto();
-                    if (concepto != null && concepto.trim().startsWith("$")) {
-                        try {
-                            saldoNeto += Double.parseDouble(concepto.replace("$", "").replace(",", "").trim());
-                        } catch (Exception e) {}
-                    }
-                }
-            }
-
             // Inyectamos el Costo de Ventas real calculado por el Kárdex
             if (cod.equals("5.2")) {
                 saldoNeto = costoVentasKardex; 
@@ -88,25 +77,14 @@ public class ReportesFinancierosService {
         List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
-            // Permitimos cuentas de 3 dígitos o subcuentas del grupo 6 (como 6.1.1)
-            boolean esValida = (cod.startsWith(prefijo) && cod.length() == 3) || 
-                               (prefijo.equals("6") && cod.startsWith("6.1") && cod.length() > 3);
+            // Permitimos SÓLO cuentas de Mayor (3 dígitos / Nivel 2)
+            boolean esValida = (cod.startsWith(prefijo) && cod.length() == 3);
             if (esValida) {
                 // Si es el grupo 5, omitimos la cuenta 5.4 para que no duplique compras
                 if (prefijo.equals("5") && cod.equals("5.4")) {
                     continue;
                 }
                 double saldo = m.getSaldoNeto();
-                if (saldo == 0) {
-                    for (var mov : m.getMovimientos()) {
-                        String concepto = mov.getConcepto();
-                        if (concepto != null && concepto.trim().startsWith("$")) {
-                            try {
-                                saldo += Double.parseDouble(concepto.replace("$", "").replace(",", "").trim());
-                            } catch (Exception ignored) {}
-                        }
-                    }
-                }
                 total += Math.abs(saldo);
             }
         }
@@ -128,28 +106,14 @@ public class ReportesFinancierosService {
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
 
-            // 1. Tomamos cuentas principales de 3 dígitos (ej. 1.1, 1.3, 1.4, 2.1, 2.2, 2.3, 3.1).
-            // 2. EXCEPCIÓN: Tomamos los detalles de Activo No Corriente que empiezan con 1.6 y tienen más de 3 dígitos (1.6.1, 1.6.2, etc.).
-            // 3. OMITIMOS estrictamente las cuentas de 1 o 2 dígitos (como "1", "2") para evitar sumas dobles.
+            // 1. Tomamos SÓLO cuentas principales de Mayor (3 dígitos / Nivel 2).
             boolean esMayorTresDigitos = (cod.length() == 3);
-            boolean esActivoNoCorrienteDetalle = cod.startsWith("1.6") && cod.length() > 3;
 
-            if (!esMayorTresDigitos && !esActivoNoCorrienteDetalle) {
+            if (!esMayorTresDigitos) {
                 continue;
             }
 
             double saldoNeto = m.getSaldoNeto();
-
-            if (saldoNeto == 0) {
-                for (var mov : m.getMovimientos()) {
-                    String concepto = mov.getConcepto();
-                    if (concepto != null && concepto.trim().startsWith("$")) {
-                        try {
-                            saldoNeto += Double.parseDouble(concepto.replace("$", "").replace(",", "").trim());
-                        } catch (Exception e) {}
-                    }
-                }
-            }
 
             if (saldoNeto == 0) continue;
 
@@ -158,16 +122,17 @@ public class ReportesFinancierosService {
             if (cod.startsWith("1")) {
                 boolean esCorriente = cod.equals("1.1") || cod.equals("1.2") || cod.equals("1.3") || cod.equals("1.4");
                 
-                // VALORIZACIÓN REAL DEL KÁRDEX PARA LA CUENTA 1.2 (Inventario)
+                // VALORIZACIÓN EXACTA SEGÚN SISTEMA ANALÍTICO/PORMENORIZADO PARA LA CUENTA 1.2 (Inventario)
                 if (cod.equals("1.2")) {
-                    // Si tu inventario físico según la balanza es de $6,000.00, lo tomamos directo del kárdex o saldo neto:
-                    double valorTotalBodega = 0.0;
-                    List<com.mycompany.programa_contable.model.KardexFilaDTO> filasKardex = kardexService.generarReporteKardex(1);
-                    if (!filasKardex.isEmpty()) {
-                        var ultimaFila = filasKardex.get(filasKardex.size() - 1);
-                        valorTotalBodega = ultimaFila.getSaldoMonetario();
+                    double compras = 0.0;
+                    for (MayorCuenta mc : cuentas) {
+                        if (mc.getCodigo().equals("5.4")) {
+                            compras = Math.abs(mc.getSaldoNeto());
+                            break;
+                        }
                     }
-                    saldoNeto = (valorTotalBodega > 0) ? valorTotalBodega : saldoNeto; 
+                    double costoVentas = kardexService.obtenerCostoDeVentasTotal();
+                    saldoNeto = redondear(Math.abs(saldoNeto) + compras - costoVentas); 
                 }
                 balance.agregarActivo(m.getCodigo(), m.getNombre(), saldoNeto, esCorriente);
             }

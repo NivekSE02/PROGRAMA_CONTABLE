@@ -198,7 +198,7 @@ public class BalanceGeneralView extends ScrollPane {
 
     private TableView<BalanceGeneralDTO.LineaBalance> crearTablaLineas(java.util.List<BalanceGeneralDTO.LineaBalance> lineas, String titulo) {
         TableView<BalanceGeneralDTO.LineaBalance> tbl = new TableView<>();
-        tbl.setPrefHeight(150);
+        tbl.setPrefHeight(200);
 
         TableColumn<BalanceGeneralDTO.LineaBalance, String> colCod = new TableColumn<>("Código");
         colCod.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getCodigo()));

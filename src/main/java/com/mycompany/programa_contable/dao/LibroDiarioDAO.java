@@ -125,58 +125,6 @@ public class LibroDiarioDAO {
             throw new SQLException("Error crítico de configuración: El costo de compra y/o el precio de venta en la tabla productos no están configurados o son inválidos.");
         }
 
-        // -----------------------------------------------------------------
-        // PASO 1: DETECTAR SI ES VENTA E INYECTAR AUTOMÁTICAMENTE COSTO DE VENTAS
-        // -----------------------------------------------------------------
-        boolean esVentaComercial = false;
-        double montoTotalVentaDetectado = 0.0;
-
-        for (DetalleAsiento det : asiento.getDetalles()) {
-            String cuenta = det.getCuentaCodigo();
-            if ("4".equals(cuenta) || "4.1".equals(cuenta) || cuenta.startsWith("4.")) {
-                double val = det.getHaber();
-                if (val <= 0 && det.getConceptoLinea() != null) {
-                    try {
-                        val = Double.parseDouble(det.getConceptoLinea().replace("$", "").replace(",", "").trim());
-                    } catch (Exception ignored) {}
-                }
-                if (val > 0) {
-                    esVentaComercial = true;
-                    montoTotalVentaDetectado = val;
-                    break;
-                }
-            }
-        }
-
-        // Si es una venta, calculamos el costo de ventas y agregamos los renglones si no existen
-        if (esVentaComercial && montoTotalVentaDetectado > 0) {
-            int unidadesVendidas = (int) Math.round(montoTotalVentaDetectado / precioVentaDinamico);
-            if (unidadesVendidas <= 0) unidadesVendidas = 1;
-            
-            double costoTotalVenta = redondear(unidadesVendidas * costoDinamico);
-
-            // Verificamos si el asiento ya tiene la cuenta 5.2 para no duplicarla
-            boolean yaTieneCostoVentas = asiento.getDetalles().stream()
-                .anyMatch(d -> "5.2".equals(d.getCuentaCodigo()));
-
-            if (!yaTieneCostoVentas && costoTotalVenta > 0) {
-                int nuevoRenglon = asiento.getDetalles().size() + 1;
-                
-                // Renglón a la cuenta 5.2 (Costo de Ventas) al Debe
-                asiento.agregarDetalle(new DetalleAsiento(
-                    nuevoRenglon++, "5.2", "Costo de ventas", "Costo automático", costoTotalVenta, 0.0
-                ));
-                
-                // Renglón a la cuenta 1.2 (Inventario de Mercaderías) al Haber
-                asiento.agregarDetalle(new DetalleAsiento(
-                    nuevoRenglon, "1.2", "Inventario de Mercaderías", "Salida automática", 0.0, costoTotalVenta
-                ));
-                
-                // Ajustamos los totales de la partida doble de forma perfectamente simétrica
-                asiento.setTotalDebe(redondear(asiento.getTotalDebe() + costoTotalVenta));
-                asiento.setTotalHaber(redondear(asiento.getTotalHaber() + costoTotalVenta));
-            }
-        }
 
         // Validación obligatoria requerida por la guía:
         if (!asiento.isPartidaDobleValida()) {

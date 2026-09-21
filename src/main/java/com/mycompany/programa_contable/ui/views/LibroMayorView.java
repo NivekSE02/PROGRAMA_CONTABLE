@@ -177,9 +177,10 @@ public class LibroMayorView extends VBox {
             tblConsolidado.getSelectionModel().select(0);
         }
 
-        // Generar las Cuentas T visuales en el FlowPane
+        // Generar las Cuentas T visuales en el FlowPane (usando el calculo consolidado exclusivo para T)
         flowCuentasT.getChildren().clear();
-        for (MayorCuenta m : mayores) {
+        List<MayorCuenta> cuentasT = mayorizacionService.obtenerMayorizacionParaCuentasT();
+        for (MayorCuenta m : cuentasT) {
             flowCuentasT.getChildren().add(crearWidgetCuentaT(m));
         }
     }

@@ -15,7 +15,7 @@
         <sqlite.version>3.45.2.0</sqlite.version>
         <mssql.version>12.6.1.jre11</mssql.version>
         <junit.version>5.10.2</junit.version>
-        <main.class>com.mycompany.programa_contable.MainApp</main.class>
+        <main.class>com.mycompany.programa_contable.Launcher</main.class>
     </properties>
 
     <dependencies>

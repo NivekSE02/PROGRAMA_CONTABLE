@@ -1,8 +1,3 @@
-# UNIVERSIDAD CATÓLICA DE EL SALVADOR (UNICAES)
-## FACULTAD DE CIENCIAS EMPRESARIALES / INGENIERÍA Y ARQUITECTURA
-### Actividad III del III Período: Módulo de Contabilidad Automatizado (25% + 5% Parcial)
-
----
 
 ## 📌 Descripción del Proyecto
 
@@ -239,4 +234,3 @@ Para optimizar al máximo los 5 minutos de defensa ante el docente:
    - Concluya demostrando que el código fuente compila con cero advertencias y cuenta con pruebas unitarias en verde.
 
 ---
-*Desarrollado para la Universidad Católica de El Salvador (UNICAES) - 2026.*

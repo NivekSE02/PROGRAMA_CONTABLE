@@ -89,18 +89,7 @@ public class BalanceGeneralDTO {
         this.totalPasivoMasCapital = redondear(totalPasivo + totalCapitalContable);
         this.diferencia = redondear(Math.abs(totalActivo - totalPasivoMasCapital));
 
-        // Ajuste automático de tolerancia para centavos por redondeo (menor a $1.00)
-        if (this.diferencia > 0 && this.diferencia < 1.00) {
-            if (totalActivo > totalPasivoMasCapital) {
-                this.utilidadDelEjercicio = redondear(this.utilidadDelEjercicio + this.diferencia);
-            } else {
-                this.utilidadDelEjercicio = redondear(this.utilidadDelEjercicio - this.diferencia);
-            }
-            // Recalculamos con el centavo absorbido
-            this.totalCapitalContable = redondear(totalCapitalRegistrado + utilidadDelEjercicio);
-            this.totalPasivoMasCapital = redondear(totalPasivo + totalCapitalContable);
-            this.diferencia = redondear(Math.abs(totalActivo - totalPasivoMasCapital));
-        }
+
 
         this.cuadrado = this.diferencia < 0.005;
     }

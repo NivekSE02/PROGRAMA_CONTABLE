@@ -14,13 +14,19 @@ public class MayorCuenta {
     private double totalHaber;
     private double saldoDeudor;
     private double saldoAcreedor;
+    private int nivel;
+    private boolean permiteMovimiento;
+    private String cuentaPadre;
     private List<MovimientoMayor> movimientos = new ArrayList<>();
 
-    public MayorCuenta(String codigo, String nombre, TipoCuenta tipo, NaturalezaCuenta naturaleza) {
+    public MayorCuenta(String codigo, String nombre, TipoCuenta tipo, NaturalezaCuenta naturaleza, int nivel, boolean permiteMovimiento, String cuentaPadre) {
         this.codigo = codigo;
         this.nombre = nombre;
         this.tipo = tipo;
         this.naturaleza = naturaleza;
+        this.nivel = nivel;
+        this.permiteMovimiento = permiteMovimiento;
+        this.cuentaPadre = cuentaPadre;
     }
 
     public void agregarMovimiento(int asientoNum, String fecha, String concepto, double debe, double haber) {
@@ -74,6 +80,9 @@ public class MayorCuenta {
     public double getTotalHaber() { return totalHaber; }
     public double getSaldoDeudor() { return saldoDeudor; }
     public double getSaldoAcreedor() { return saldoAcreedor; }
+    public int getNivel() { return nivel; }
+    public boolean isPermiteMovimiento() { return permiteMovimiento; }
+    public String getCuentaPadre() { return cuentaPadre; }
     public List<MovimientoMayor> getMovimientos() { return movimientos; }
 
     public String getCuentaDisplay() {
