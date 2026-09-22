@@ -1,6 +1,7 @@
 package com.mycompany.programa_contable.ui.views;
 
 import com.mycompany.programa_contable.db.DatabaseManager;
+import com.mycompany.programa_contable.model.ConfiguracionDAO;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -12,6 +13,7 @@ public class ConfiguracionView extends ScrollPane {
     private TextField txtNombreProducto;
     private TextField txtCostoCompra;
     private TextField txtPrecioVenta;
+    private TextField txtTasaIva;
     private ComboBox<String> cmbRegimenIva;
 
     public ConfiguracionView() {
@@ -54,7 +56,7 @@ public class ConfiguracionView extends ScrollPane {
         VBox titleBox = new VBox(3);
         Label lblTitulo = new Label("Configuración del Sistema");
         lblTitulo.setStyle("-fx-font-size: 22px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
-        Label lblSub = new Label("Parámetros globales del producto y política de IVA (13% El Salvador)");
+        Label lblSub = new Label("Parámetros del producto y tasa de IVA para los próximos asientos");
         lblSub.setStyle("-fx-font-size: 14px; -fx-text-fill: #64748b;");
         titleBox.getChildren().addAll(lblTitulo, lblSub);
 
@@ -86,9 +88,21 @@ public class ConfiguracionView extends ScrollPane {
         lblIva.getStyleClass().add("form-label");
         cmbRegimenIva = new ComboBox<>();
         cmbRegimenIva.getItems().addAll("IVA Incluido en el Monto Total", "Más IVA (Se calcula adicional)");
-        cmbRegimenIva.setValue("IVA Incluido en el Monto Total");
+        String modalidadActual = new ConfiguracionDAO().obtenerModalidadIva();
+        cmbRegimenIva.setValue(ConfiguracionDAO.IVA_MAS_IVA.equals(modalidadActual)
+                ? "Más IVA (Se calcula adicional)"
+                : "IVA Incluido en el Monto Total");
         cmbRegimenIva.setMaxWidth(Double.MAX_VALUE);
         VBox rowIva = new VBox(6, lblIva, cmbRegimenIva);
+
+        double tasaIvaActual = new ConfiguracionDAO().obtenerTasaIva();
+        Label lblTasaIva = new Label("Tasa de IVA (%)");
+        lblTasaIva.getStyleClass().add("form-label");
+        txtTasaIva = new TextField(String.valueOf(tasaIvaActual * 100));
+        txtTasaIva.setPromptText("13");
+        Label notaIva = new Label("Se aplica únicamente al agregar renglones de asientos nuevos. Los asientos históricos no se modifican.");
+        notaIva.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+        VBox rowTasaIva = new VBox(6, lblTasaIva, txtTasaIva, notaIva);
 
         Button btnGuardar = new Button("Guardar Cambios");
         btnGuardar.getStyleClass().add("btn-primary");
@@ -102,9 +116,13 @@ public class ConfiguracionView extends ScrollPane {
 
                 double nuevoCosto = Double.parseDouble(txtCostoCompra.getText().trim());
                 double nuevoPrecio = Double.parseDouble(txtPrecioVenta.getText().trim());
+                double nuevaTasaIva = Double.parseDouble(txtTasaIva.getText().trim().replace(',', '.')) / 100.0;
 
                 if (nuevoCosto <= 0 || nuevoPrecio <= 0) {
                     throw new IllegalArgumentException("El costo y el precio de venta deben ser mayores a cero.");
+                }
+                if (nuevaTasaIva < 0 || nuevaTasaIva > 1) {
+                    throw new IllegalArgumentException("La tasa de IVA debe estar entre 0 % y 100 %.");
                 }
 
                 String updateSql = "UPDATE productos SET nombre = ?, costo_compra = ?, precio_venta = ? WHERE id = 1";
@@ -115,8 +133,14 @@ public class ConfiguracionView extends ScrollPane {
                     ps.setDouble(3, nuevoPrecio);
                     ps.executeUpdate();
                 }
+                new ConfiguracionDAO().guardarTasaIva(nuevaTasaIva);
+                String modalidad = "Más IVA (Se calcula adicional)".equals(cmbRegimenIva.getValue())
+                        ? ConfiguracionDAO.IVA_MAS_IVA
+                        : ConfiguracionDAO.IVA_INCLUIDO;
+                new ConfiguracionDAO().guardarModalidadIva(modalidad);
 
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "Configuración actualizada con éxito.", ButtonType.OK);
+                Alert a = new Alert(Alert.AlertType.INFORMATION,
+                        "Configuración actualizada. La tasa y modalidad se aplicarán solo a los próximos asientos.", ButtonType.OK);
                 a.showAndWait();
             } catch (NumberFormatException ex) {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Error de formato: Ingrese valores numéricos válidos para el costo y precio.");
@@ -134,7 +158,7 @@ public class ConfiguracionView extends ScrollPane {
         Label lblCardTitle = new Label("Parámetros del Producto");
         lblCardTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
 
-        cardForm.getChildren().addAll(lblCardTitle, new Separator(), rowNombre, rowCosto, rowPrecio, rowIva, new Separator(), btnGuardar);
+        cardForm.getChildren().addAll(lblCardTitle, new Separator(), rowNombre, rowCosto, rowPrecio, rowIva, rowTasaIva, new Separator(), btnGuardar);
         mainContainer.getChildren().addAll(titleBox, cardForm);
     }
 }

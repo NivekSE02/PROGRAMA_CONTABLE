@@ -31,6 +31,7 @@ public class LibroDiarioView extends VBox {
 
     private final LibroDiarioDAO libroDiarioDAO = new LibroDiarioDAO();
     private final CuentaDAO cuentaDAO = new CuentaDAO();
+    private final com.mycompany.programa_contable.model.ConfiguracionDAO configuracionDAO = new com.mycompany.programa_contable.model.ConfiguracionDAO();
     private static final DecimalFormat MONEDA = new DecimalFormat("$#,##0.00");
 
     // Formulario de Registro
@@ -167,6 +168,10 @@ public class LibroDiarioView extends VBox {
             double debeVal = parseMonto(txtMontoDebe.getText());
             double haberVal = parseMonto(txtMontoHaber.getText());
             String codigoCuenta = sel.getCodigo();
+            // Se consulta al crear el renglón: los asientos ya almacenados nunca se recalculan.
+            double tasaIva = configuracionDAO.obtenerTasaIva();
+            boolean ivaIncluido = com.mycompany.programa_contable.model.ConfiguracionDAO.IVA_INCLUIDO
+                    .equals(configuracionDAO.obtenerModalidadIva());
 
             if (debeVal == 0 && haberVal == 0) {
                 mostrarAlerta(Alert.AlertType.WARNING, "Monto Inválido", "Debe ingresar un valor en el Debe o en el Haber.");
@@ -183,8 +188,10 @@ public class LibroDiarioView extends VBox {
                                              codigoCuenta.startsWith("1.7") );
 
             if (esCompraOActivoConIva && debeVal > 0) {
-                double valorNeto = redondear(debeVal / 1.13); 
-                double ivaCredito = redondear(debeVal - valorNeto);     
+                double valorNeto = ivaIncluido ? redondear(debeVal / (1.0 + tasaIva)) : debeVal;
+                double ivaCredito = ivaIncluido
+                        ? redondear(debeVal - valorNeto)
+                        : redondear(valorNeto * tasaIva);
 
                 agregarLineaContable(sel, valorNeto, 0.0);
                 agregarLineaContable(cuentaDAO.buscarPorCodigo("1.4"), ivaCredito, 0.0);
@@ -195,8 +202,10 @@ public class LibroDiarioView extends VBox {
 
             // 2. AUTOMATIZACIÓN INTELIGENTE DE IVA EN VENTAS (Al Haber)
             if ("4.1".equals(codigoCuenta) && haberVal > 0) {
-                double valorNetoVenta = redondear(haberVal / 1.13); 
-                double ivaDebito = redondear(haberVal - valorNetoVenta);     
+                double valorNetoVenta = ivaIncluido ? redondear(haberVal / (1.0 + tasaIva)) : haberVal;
+                double ivaDebito = ivaIncluido
+                        ? redondear(haberVal - valorNetoVenta)
+                        : redondear(valorNetoVenta * tasaIva);
 
                 agregarLineaContable(sel, 0.0, valorNetoVenta);
                 agregarLineaContable(cuentaDAO.buscarPorCodigo("2.3"), 0.0, ivaDebito);
@@ -208,8 +217,10 @@ public class LibroDiarioView extends VBox {
             // 3. AUTOMATIZACIÓN INTELIGENTE DE IVA EN GASTOS FINANCIEROS / COMISIONES (6.1)
             boolean esGastoFinancieroConIva = ("6.1".equals(codigoCuenta) || codigoCuenta.startsWith("6.1"));
             if (esGastoFinancieroConIva && debeVal > 0) {
-                double valorComisionNeto = redondear(debeVal); 
-                double ivaComision = redondear(valorComisionNeto * 0.13);     
+                double valorComisionNeto = ivaIncluido ? redondear(debeVal / (1.0 + tasaIva)) : debeVal;
+                double ivaComision = ivaIncluido
+                        ? redondear(debeVal - valorComisionNeto)
+                        : redondear(valorComisionNeto * tasaIva);
 
                 agregarLineaContable(sel, valorComisionNeto, 0.0);
                 agregarLineaContable(cuentaDAO.buscarPorCodigo("1.4"), ivaComision, 0.0);
