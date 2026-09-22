@@ -16,10 +16,12 @@ public class ConfiguracionView extends ScrollPane {
 
     public ConfiguracionView() {
         setFitToWidth(true);
-        setStyle("-fx-background-color: transparent;");
+        getStyleClass().add("scroll-pane");
+        setStyle("-fx-background-color: #f8fafc; -fx-background: #f8fafc;");
 
-        mainContainer = new VBox(20);
-        mainContainer.setPadding(new Insets(24));
+        mainContainer = new VBox(24);
+        mainContainer.setPadding(new Insets(28, 32, 32, 32));
+        mainContainer.setStyle("-fx-background-color: #f8fafc;");
         setContent(mainContainer);
 
         cargarUI();
@@ -49,44 +51,48 @@ public class ConfiguracionView extends ScrollPane {
             System.err.println("[ConfiguracionView] Error al consultar la BD: " + e.getMessage());
         }
 
-        VBox titleBox = new VBox(4);
-        Label lblInst = new Label("UNIVERSIDAD CATÓLICA DE EL SALVADOR - EMPRESA PRÁCTICA S.A. DE C.V.");
-        lblInst.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
-        Label lblTitulo = new Label("CONFIGURACIÓN Y GENERALIDADES DEL SISTEMA");
-        lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        Label lblSub = new Label("Parámetros globales del producto y política de IVA (13% El Salvador).");
-        titleBox.getChildren().addAll(lblInst, lblTitulo, lblSub);
+        VBox titleBox = new VBox(3);
+        Label lblTitulo = new Label("Configuración del Sistema");
+        lblTitulo.setStyle("-fx-font-size: 22px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblSub = new Label("Parámetros globales del producto y política de IVA (13% El Salvador)");
+        lblSub.setStyle("-fx-font-size: 14px; -fx-text-fill: #64748b;");
+        titleBox.getChildren().addAll(lblTitulo, lblSub);
 
-        VBox cardForm = new VBox(16);
+        VBox cardForm = new VBox(20);
         cardForm.getStyleClass().add("card");
-        cardForm.setMaxWidth(600);
+        cardForm.setMaxWidth(640);
+        cardForm.setPadding(new Insets(28));
 
-        GridPane grid = new GridPane();
-        grid.setHgap(15);
-        grid.setVgap(12);
-
-        // Campos obligatorios con textos de ayuda (prompt text) si están vacíos
+        // Campos de configuracion organizados en VBox con etiquetas
+        Label lblNomProd = new Label("Nombre del Producto");
+        lblNomProd.getStyleClass().add("form-label");
         txtNombreProducto = new TextField(nombre);
         txtNombreProducto.setPromptText("Ej. Lote de Queso");
+        VBox rowNombre = new VBox(6, lblNomProd, txtNombreProducto);
 
+        Label lblCosto = new Label("Costo Unitario de Compra ($)");
+        lblCosto.getStyleClass().add("form-label");
         txtCostoCompra = new TextField(costo);
         txtCostoCompra.setPromptText("0.00");
+        VBox rowCosto = new VBox(6, lblCosto, txtCostoCompra);
 
+        Label lblPrecio = new Label("Precio Unitario de Venta ($)");
+        lblPrecio.getStyleClass().add("form-label");
         txtPrecioVenta = new TextField(precio);
         txtPrecioVenta.setPromptText("0.00");
+        VBox rowPrecio = new VBox(6, lblPrecio, txtPrecioVenta);
 
+        Label lblIva = new Label("Modalidad de Cálculo de IVA");
+        lblIva.getStyleClass().add("form-label");
         cmbRegimenIva = new ComboBox<>();
         cmbRegimenIva.getItems().addAll("IVA Incluido en el Monto Total", "Más IVA (Se calcula adicional)");
         cmbRegimenIva.setValue("IVA Incluido en el Monto Total");
-        cmbRegimenIva.setPrefWidth(280);
+        cmbRegimenIva.setMaxWidth(Double.MAX_VALUE);
+        VBox rowIva = new VBox(6, lblIva, cmbRegimenIva);
 
-        grid.addRow(0, new Label("Nombre del Producto:"), txtNombreProducto);
-        grid.addRow(1, new Label("Costo Unitario de Compra ($):"), txtCostoCompra);
-        grid.addRow(2, new Label("Precio Unitario de Venta ($):"), txtPrecioVenta);
-        grid.addRow(3, new Label("Modalidad de Cálculo de IVA:"), cmbRegimenIva);
-
-        Button btnGuardar = new Button("💾 Guardar Cambios");
+        Button btnGuardar = new Button("Guardar Cambios");
         btnGuardar.getStyleClass().add("btn-primary");
+        btnGuardar.setMinWidth(200);
         btnGuardar.setOnAction(e -> {
             try {
                 String nuevoNombre = txtNombreProducto.getText().trim();
@@ -110,7 +116,7 @@ public class ConfiguracionView extends ScrollPane {
                     ps.executeUpdate();
                 }
 
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "¡Configuración actualizada en la base de datos con éxito!", ButtonType.OK);
+                Alert a = new Alert(Alert.AlertType.INFORMATION, "Configuración actualizada con éxito.", ButtonType.OK);
                 a.showAndWait();
             } catch (NumberFormatException ex) {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Error de formato: Ingrese valores numéricos válidos para el costo y precio.");
@@ -119,12 +125,16 @@ public class ConfiguracionView extends ScrollPane {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Datos requeridos: " + ex.getMessage());
                 a.showAndWait();
             } catch (Exception ex) {
-                Alert a = new Alert(Alert.AlertType.ERROR, "Error al guardar en la base de datos: " + ex.getMessage());
+                Alert a = new Alert(Alert.AlertType.ERROR, "Error al guardar: " + ex.getMessage());
                 a.showAndWait();
             }
         });
 
-        cardForm.getChildren().addAll(new Label("📦 Parámetros del Producto Único"), grid, new Separator(), btnGuardar);
+        // Titulo de seccion de la tarjeta
+        Label lblCardTitle = new Label("Parámetros del Producto");
+        lblCardTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+
+        cardForm.getChildren().addAll(lblCardTitle, new Separator(), rowNombre, rowCosto, rowPrecio, rowIva, new Separator(), btnGuardar);
         mainContainer.getChildren().addAll(titleBox, cardForm);
     }
 }

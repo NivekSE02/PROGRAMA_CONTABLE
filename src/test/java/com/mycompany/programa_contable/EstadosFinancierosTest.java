@@ -16,12 +16,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Pruebas unitarias para Mayorización Automática y Estados Financieros Automáticos:
- * 1. Mayorización en tiempo real sin cálculos manuales
- * 2. Balance General: Código 1 (Activo) = Código 2 (Pasivo) + Código 3 (Capital Contable)
- * 3. Estado de Resultados: Código 5 (Ingresos) - Código 4 (Costos y Gastos) = Utilidad
- */
 @Disabled("Pruebas de estados financieros pendientes de adaptar al catálogo actual")
 public class EstadosFinancierosTest {
 

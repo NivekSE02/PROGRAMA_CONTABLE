@@ -24,15 +24,22 @@ public class ConfiguracionDAO {
     }
 
     public void guardarConfiguracion(Map<String, String> valores) {
-        String sql = "INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)";
+        String sqlUpdate = "UPDATE configuracion SET valor = ? WHERE clave = ?";
+        String sqlInsert = "INSERT INTO configuracion (clave, valor) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM configuracion WHERE clave = ?)";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement psU = conn.prepareStatement(sqlUpdate);
+             PreparedStatement psI = conn.prepareStatement(sqlInsert)) {
             for (Map.Entry<String, String> entry : valores.entrySet()) {
-                ps.setString(1, entry.getKey());
-                ps.setString(2, entry.getValue());
-                ps.addBatch();
+                psU.setString(1, entry.getValue());
+                psU.setString(2, entry.getKey());
+                psU.addBatch();
+                psI.setString(1, entry.getKey());
+                psI.setString(2, entry.getValue());
+                psI.setString(3, entry.getKey());
+                psI.addBatch();
             }
-            ps.executeBatch();
+            psU.executeBatch();
+            psI.executeBatch();
         } catch (SQLException e) {
             System.err.println("[ConfiguracionDAO] Error al guardar configuración: " + e.getMessage());
         }

@@ -15,30 +15,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Servicio de Mayorización Automática en Tiempo Real:
- * Consolida automáticamente los débitos y créditos para actualizar el saldo
- * (Deudor / Acreedor) de cada cuenta del Catálogo, sin cálculos manuales.
- */
 public class MayorizacionService {
 
     private final DatabaseManager dbManager = DatabaseManager.getInstance();
 
-    /**
-     * Obtiene la consolidación en tiempo real de todas las cuentas que tienen movimientos.
-     */
     public List<MayorCuenta> obtenerMayorizacionCompleta() {
         return obtenerMayorizacion(false);
     }
 
-    /**
-     * Obtiene la mayorización incluyendo o no cuentas sin movimiento.
-     */
     public List<MayorCuenta> obtenerMayorizacion(boolean incluirCuentasSinMovimiento) {
         Map<String, MayorCuenta> mapaMayor = new LinkedHashMap<>();
 
-        // 1. Cargar todas las cuentas del catálogo ordenadas por código
-        String sqlCuentas = "SELECT codigo, nombre, tipo, naturaleza, nivel, permite_movimiento, cuenta_padre FROM cuentas ORDER BY codigo ASC";
+        // Cargar todas las cuentas del catálogo ordenadas por código
+        String sqlCuentas = "SELECT codigo, nombre, tipo, naturaleza, nivel, permite_movimiento, cuenta_padre, subtipo FROM cuentas ORDER BY codigo ASC";
         try (Connection conn = dbManager.getConnection();
              Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(sqlCuentas)) {
@@ -67,12 +56,13 @@ public class MayorizacionService {
                 String padre = rs.getString("cuenta_padre");
 
                 mapaMayor.put(cod, new MayorCuenta(cod, nom, tipo, nat, nivel, permiteMov, padre));
+                mapaMayor.get(cod).setSubtipo(rs.getString("subtipo"));
             }
         } catch (SQLException e) {
             System.err.println("[MayorizacionService] Error al cargar catálogo: " + e.getMessage());
         }
 
-        // 2. Consolidar en tiempo real todos los movimientos desde detalle_asiento
+        // Consolidar movimientos desde detalle_asiento
         String sqlMovs = "SELECT d.cuenta_codigo, a.numero as asiento_num, a.fecha, " +
                          "COALESCE(d.concepto_linea, a.concepto) as concepto, d.debe, d.haber " +
                          "FROM detalle_asiento d " +
@@ -111,7 +101,7 @@ public class MayorizacionService {
     public List<MayorCuenta> obtenerMayorizacionParaCuentasT() {
         Map<String, MayorCuenta> mapaMayor = new LinkedHashMap<>();
 
-        String sqlCuentas = "SELECT codigo, nombre, tipo, naturaleza, nivel, permite_movimiento, cuenta_padre FROM cuentas ORDER BY codigo ASC";
+        String sqlCuentas = "SELECT codigo, nombre, tipo, naturaleza, nivel, permite_movimiento, cuenta_padre, subtipo FROM cuentas ORDER BY codigo ASC";
         try (Connection conn = dbManager.getConnection();
              Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(sqlCuentas)) {
@@ -140,6 +130,7 @@ public class MayorizacionService {
                 String padre = rs.getString("cuenta_padre");
 
                 mapaMayor.put(cod, new MayorCuenta(cod, nom, tipo, nat, nivel, permiteMov, padre));
+                mapaMayor.get(cod).setSubtipo(rs.getString("subtipo"));
             }
         } catch (SQLException e) {
             System.err.println("[MayorizacionService] Error al cargar catálogo para T: " + e.getMessage());
@@ -188,9 +179,6 @@ public class MayorizacionService {
         return resultado;
     }
 
-    /**
-     * Obtiene la cuenta T o mayor detallado de una cuenta específica.
-     */
     public MayorCuenta obtenerMayorDeCuenta(String codigoCuenta) {
         String sqlCuenta = "SELECT codigo, nombre, tipo, naturaleza, nivel, permite_movimiento, cuenta_padre FROM cuentas WHERE codigo = ?";
         MayorCuenta mayor = null;

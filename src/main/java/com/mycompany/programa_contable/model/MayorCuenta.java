@@ -17,6 +17,7 @@ public class MayorCuenta {
     private int nivel;
     private boolean permiteMovimiento;
     private String cuentaPadre;
+    private String subtipo;
     private List<MovimientoMayor> movimientos = new ArrayList<>();
 
     public MayorCuenta(String codigo, String nombre, TipoCuenta tipo, NaturalezaCuenta naturaleza, int nivel, boolean permiteMovimiento, String cuentaPadre) {
@@ -83,6 +84,8 @@ public class MayorCuenta {
     public int getNivel() { return nivel; }
     public boolean isPermiteMovimiento() { return permiteMovimiento; }
     public String getCuentaPadre() { return cuentaPadre; }
+    public String getSubtipo() { return subtipo; }
+    public void setSubtipo(String subtipo) { this.subtipo = subtipo; }
     public List<MovimientoMayor> getMovimientos() { return movimientos; }
 
     public String getCuentaDisplay() {

@@ -120,7 +120,7 @@ public class EstadoResultadosDTO {
 
     public void calcularTotales() {
 
-        // INGRESOS
+        // Ingresos
         double ingresos = ingresosOperacion.stream()
                 .mapToDouble(LineaReporte::getMonto)
                 .sum();
@@ -141,7 +141,7 @@ public class EstadoResultadosDTO {
                 - devolucionesVentasMonto
         );
 
-        // COSTOS
+        // Costos
         double costos = costosVenta.stream()
                 .mapToDouble(LineaReporte::getMonto)
                 .sum();
@@ -153,21 +153,20 @@ public class EstadoResultadosDTO {
         this.totalCostos = redondear(costos);
         this.totalDevolucionesCompras = redondear(devolucionesComprasMonto);
 
-        double costosNetos = redondear(
-                costos - devolucionesComprasMonto
-        );
+        // "costos" ya es el costo de ventas calculado por Kárdex; la devolución
+        // sobre compras afecta el inventario, no se descuenta una segunda vez.
+        double costosNetos = redondear(costos);
 
-        // UTILIDAD BRUTA
+        // Utilidad bruta
         this.utilidadBruta = redondear(
                 totalIngresos - costosNetos
         );
 
-        // GASTOS DE OPERACIÓN
+        // Gastos de operación
         double gastosAdmin = gastosAdministracion.stream()
                 .mapToDouble(LineaReporte::getMonto)
                 .sum();
 
-        // CORRECCIÓN: Cambiado de 'gastosVenta' a 'sumaGastosVenta' para evitar conflicto con la lista
         double sumaGastosVenta = gastosVenta.stream()
                 .mapToDouble(LineaReporte::getMonto)
                 .sum();
@@ -176,27 +175,28 @@ public class EstadoResultadosDTO {
                 .mapToDouble(LineaReporte::getMonto)
                 .sum();
 
+        // La presentación del sistema incluye los gastos financieros dentro del
+        // total de gasto de operación.
         this.totalGastosOperacion = redondear(
-                gastosAdmin + sumaGastosVenta
+                gastosAdmin + sumaGastosVenta + gastosFinancierosMonto
         );
 
         this.totalGastosFinancieros = redondear(
                 gastosFinancierosMonto
         );
 
-        // UTILIDAD OPERATIVA
+        // Utilidad operativa
         this.utilidadOperacion = redondear(
                 utilidadBruta - totalGastosOperacion
         );
 
-        // TOTAL DE COSTOS Y GASTOS
+        // Total costos y gastos
         this.totalCostosYGastos = redondear(
                 costosNetos
                 + totalGastosOperacion
-                + totalGastosFinancieros
         );
 
-        // UTILIDAD NETA
+        // Utilidad neta
         this.utilidadNeta = redondear(
                 totalIngresos - totalCostosYGastos
         );

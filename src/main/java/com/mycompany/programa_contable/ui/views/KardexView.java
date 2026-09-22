@@ -24,10 +24,12 @@ public class KardexView extends ScrollPane {
 
     public KardexView() {
         setFitToWidth(true);
-        setStyle("-fx-background-color: transparent;");
+        getStyleClass().add("scroll-pane");
+        setStyle("-fx-background-color: #f8fafc; -fx-background: #f8fafc;");
 
-        mainContainer = new VBox(20);
-        mainContainer.setPadding(new Insets(24));
+        mainContainer = new VBox(24);
+        mainContainer.setPadding(new Insets(28, 32, 32, 32));
+        mainContainer.setStyle("-fx-background-color: #f8fafc;");
         setContent(mainContainer);
 
         cargarDatos();
@@ -39,25 +41,31 @@ public class KardexView extends ScrollPane {
         // Obtenemos las filas automáticas desde el servicio
         List<KardexFilaDTO> reporteKardex = kardexService.generarReporteKardex(PRODUCTO_ACTUAL_ID);
 
-        // 1. Cabecera institucional
-        HBox topBar = new HBox(16);
+        // 1. Cabecera
+        HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleBox = new VBox(4);
-        Label lblInst = new Label("UNIVERSIDAD CATÓLICA DE EL SALVADOR - EMPRESA PRÁCTICA S.A. DE C.V.");
-        lblInst.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
-        Label lblTitulo = new Label("KÁRDEX DE INVENTARIO AUTOMÁTICO");
-        lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        Label lblSub = new Label("Método de Valuación: PEPS (Primeras Entradas, Primeras Salidas) - Producto: Queso");
-        lblSub.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
-        titleBox.getChildren().addAll(lblInst, lblTitulo, lblSub);
+        VBox titleBox = new VBox(3);
+        Label lblTitulo = new Label("Kárdex de Inventario");
+        lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblSub = new Label("Control de movimientos de inventario por método PEPS");
+        lblSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        titleBox.getChildren().addAll(lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        Button btnImprimir = new Button("📄 Exportar Kárdex");
+        MenuButton btnImprimir = new MenuButton("Exportar Kárdex");
         btnImprimir.getStyleClass().add("btn-primary");
-        btnImprimir.setOnAction(e -> mostrarAlertaConstruccion());
+        btnImprimir.getStyleClass().add("export-button");
+        btnImprimir.setStyle("-fx-text-fill: white;");
+        MenuItem mnuHtml = new MenuItem("Exportar a HTML");
+        mnuHtml.getStyleClass().add("export-menu-item");
+        mnuHtml.setOnAction(e -> mostrarAlertaConstruccion());
+        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
+        mnuExcel.getStyleClass().add("export-menu-item");
+        mnuExcel.setOnAction(e -> exportarExcel());
+        btnImprimir.getItems().addAll(mnuHtml, mnuExcel);
 
-        Button btnRefrescar = new Button("🔄 Actualizar");
+        Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
         btnRefrescar.setOnAction(e -> cargarDatos());
 
@@ -78,8 +86,8 @@ public class KardexView extends ScrollPane {
         banner.setPadding(new Insets(14, 20, 14, 20));
         banner.setStyle("-fx-background-color: #f0fdf4; -fx-background-radius: 10px; -fx-border-color: #bbf7d0; -fx-border-radius: 10px;");
         
-        Label lblCheck = new Label("📦 INVENTARIO ACTUAL EN BODEGA:");
-        lblCheck.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #166534;");
+        Label lblCheck = new Label("INVENTARIO ACTUAL EN BODEGA:");
+        lblCheck.setStyle("-fx-font-weight: 700; -fx-font-size: 13px; -fx-text-fill: #166534;");
         
         Label lblFormula = new Label(existenciasFinales + " Unidades Disponibles  |  Valor Total: " + MONEDA.format(saldoFinal));
         lblFormula.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #15803d; -fx-font-family: 'Consolas', monospace;");
@@ -96,9 +104,7 @@ public class KardexView extends ScrollPane {
 
         cardReporte.getChildren().addAll(lblTablaTitle, tblKardex);
         
-        // -----------------------------------------------------------------
-        // 4. Barra de Totales Inferior (Estilo Balanza de Comprobación)
-        // -----------------------------------------------------------------
+        // Barra de totales inferior
         int totalUnidadesEntrada = 0;
         int totalUnidadesSalida = 0;
         double totalDineroEntrada = 0.0;
@@ -191,5 +197,29 @@ public class KardexView extends ScrollPane {
         a.setTitle("Función en Desarrollo");
         a.setHeaderText(null);
         a.showAndWait();
+    }
+    
+    private void exportarExcel() {
+        List<KardexFilaDTO> reporteKardex = kardexService.generarReporteKardex(PRODUCTO_ACTUAL_ID);
+        if (reporteKardex.isEmpty()) {
+            Alert a = new Alert(Alert.AlertType.WARNING, "No hay datos en el kárdex para exportar.");
+            a.showAndWait();
+            return;
+        }
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Guardar Reporte en Excel");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Libro de Excel (*.xlsx)", "*.xlsx"));
+        fc.setInitialFileName("Kardex_Inventario_" + java.time.LocalDate.now() + ".xlsx");
+        java.io.File dest = fc.showSaveDialog(getScene().getWindow());
+        if (dest != null) {
+            try {
+                com.mycompany.programa_contable.service.ExportacionService.exportarKardexExcel(reporteKardex, "Queso Fresco (Id 1)", dest);
+                Alert a = new Alert(Alert.AlertType.INFORMATION, "Kárdex exportado a Excel correctamente.");
+                a.showAndWait();
+            } catch (Exception ex) {
+                Alert a = new Alert(Alert.AlertType.ERROR, "Error al exportar a Excel: " + ex.getMessage());
+                a.showAndWait();
+            }
+        }
     }
 }

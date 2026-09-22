@@ -7,7 +7,7 @@ public class ProductoDAO {
     private final DatabaseManager dbManager = DatabaseManager.getInstance();
 
     public double obtenerCostoCompraActual() {
-        String sql = "SELECT ISNULL(costo_compra, 8.85) FROM productos WHERE id = 1";
+        String sql = "SELECT COALESCE(costo_compra, 8.85) FROM productos WHERE id = 1";
         try (Connection conn = dbManager.getConnection();
              Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(sql)) {

@@ -1,12 +1,9 @@
 package com.mycompany.programa_contable;
 
 import com.mycompany.programa_contable.db.DatabaseManager;
-import com.mycompany.programa_contable.model.Usuario;
-import com.mycompany.programa_contable.ui.views.LoginView;
 import com.mycompany.programa_contable.ui.views.MainLayoutView;
 import javafx.application.Application;
 import javafx.scene.Scene;
-import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 import java.net.URL;
@@ -20,11 +17,7 @@ public class MainApp extends Application {
         this.primaryStage = stage;
         this.primaryStage.setTitle("FINANCE PRO - Sistema Contable");
 
-        // 1. Inicializar persistencia SQLite y scripts DDL/DML
         DatabaseManager.getInstance().initDatabase();
-
-        // 2. Iniciar directamente en el MainLayout
-        // SessionManager ya tiene un usuario mock (administrador) por defecto.
         mostrarMain();
 
         stage.setMinWidth(1200);
@@ -33,10 +26,7 @@ public class MainApp extends Application {
     }
 
     private void mostrarMain() {
-        MainLayoutView mainLayout = new MainLayoutView(() -> {
-            // El logout simplemente cerrará la aplicación ahora que no hay login
-            System.exit(0);
-        });
+        MainLayoutView mainLayout = new MainLayoutView(() -> System.exit(0));
         Scene scene = new Scene(mainLayout, 1280, 840);
         aplicarEstilos(scene);
         primaryStage.setScene(scene);
@@ -44,11 +34,11 @@ public class MainApp extends Application {
     }
 
     private void aplicarEstilos(Scene scene) {
-        URL cssUrl = getClass().getResource("/com/mycompany/programa_contable/css/styles.css");;;
+        URL cssUrl = getClass().getResource("/com/mycompany/programa_contable/css/styles.css");
         if (cssUrl != null) {
             scene.getStylesheets().add(cssUrl.toExternalForm());
         } else {
-            System.err.println("[MainApp] No se encontró la hoja de estilos styles.css");
+            System.err.println("[MainApp] No se encontró styles.css");
         }
     }
 

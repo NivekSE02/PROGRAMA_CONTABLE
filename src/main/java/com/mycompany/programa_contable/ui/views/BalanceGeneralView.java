@@ -26,10 +26,12 @@ public class BalanceGeneralView extends ScrollPane {
 
     public BalanceGeneralView() {
         setFitToWidth(true);
-        setStyle("-fx-background-color: transparent;");
+        getStyleClass().add("scroll-pane");
+        setStyle("-fx-background-color: #f8fafc; -fx-background: #f8fafc;");
 
-        mainContainer = new VBox(20);
-        mainContainer.setPadding(new Insets(24));
+        mainContainer = new VBox(24);
+        mainContainer.setPadding(new Insets(28, 32, 32, 32));
+        mainContainer.setStyle("-fx-background-color: #f8fafc;");
         setContent(mainContainer);
 
         cargarDatos();
@@ -39,50 +41,53 @@ public class BalanceGeneralView extends ScrollPane {
         mainContainer.getChildren().clear();
         balanceActual = reportesService.generarBalanceGeneral();
 
-        // 1. Cabecera institucional
-        HBox topBar = new HBox(16);
+        // 1. Cabecera
+        HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleBox = new VBox(4);
-        Label lblInst = new Label("UNIVERSIDAD CATÓLICA DE EL SALVADOR - EMPRESA PRÁCTICA S.A. DE C.V.");
-        lblInst.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
-        Label lblTitulo = new Label("BALANCE GENERAL AUTOMÁTICO");
-        lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        Label lblSub = new Label("Clasificación por Dígitos: Código 1 (Activo) = Código 2 (Pasivo) + Código 3 (Capital Contable)");
-        lblSub.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
-        titleBox.getChildren().addAll(lblInst, lblTitulo, lblSub);
+        VBox titleBox = new VBox(3);
+        Label lblTitulo = new Label("Balance General");
+        lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblSub = new Label("Código 1 (Activo) = Código 2 (Pasivo) + Código 3 (Capital Contable)");
+        lblSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        titleBox.getChildren().addAll(lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        Button btnImprimir = new Button("📄 Exportar Reporte Formal e Imprimir");
+        MenuButton btnImprimir = new MenuButton("Exportar Reporte");
         btnImprimir.getStyleClass().add("btn-primary");
-        btnImprimir.setOnAction(e -> exportarHTML());
+        btnImprimir.getStyleClass().add("export-button");
+        btnImprimir.setStyle("-fx-text-fill: white;");
+        MenuItem mnuHtml = new MenuItem("Exportar a HTML");
+        mnuHtml.getStyleClass().add("export-menu-item");
+        mnuHtml.setOnAction(e -> exportarHTML());
+        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
+        mnuExcel.getStyleClass().add("export-menu-item");
+        mnuExcel.setOnAction(e -> exportarExcel());
+        btnImprimir.getItems().addAll(mnuHtml, mnuExcel);
 
-        Button btnRefrescar = new Button("🔄 Actualizar");
+        Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
         btnRefrescar.setOnAction(e -> cargarDatos());
+        
+        Button btnAyuda = new Button("Ayuda");
+        btnAyuda.getStyleClass().add("btn-secondary");
+        btnAyuda.setOnAction(e -> {
+            String msg = "";
+            if (balanceActual.isCuadrado()) {
+                msg = "ECUACIÓN CONTABLE VERIFICADA (CÓDIGO 1 = 2 + 3):\nACTIVO: " + MONEDA.format(balanceActual.getTotalActivo()) +
+                      "  ==  PASIVO (" + MONEDA.format(balanceActual.getTotalPasivo()) +
+                      ") + CAPITAL (" + MONEDA.format(balanceActual.getTotalCapitalContable()) +
+                      ") = " + MONEDA.format(balanceActual.getTotalPasivoMasCapital());
+            } else {
+                msg = "ATENCIÓN: Descuadre de " + MONEDA.format(balanceActual.getDiferencia());
+            }
+            Alert a = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
+            a.setHeaderText("Ecuación Contable");
+            a.showAndWait();
+        });
 
-        topBar.getChildren().addAll(titleBox, btnImprimir, btnRefrescar);
+        topBar.getChildren().addAll(titleBox, btnAyuda, btnImprimir, btnRefrescar);
 
-        // 2. Banner de Verificación de la Ecuación Contable
-        HBox banner = new HBox(12);
-        banner.setAlignment(Pos.CENTER_LEFT);
-        banner.setPadding(new Insets(14, 20, 14, 20));
-        if (balanceActual.isCuadrado()) {
-            banner.setStyle("-fx-background-color: #dcfce7; -fx-background-radius: 10px; -fx-border-color: #86efac; -fx-border-radius: 10px;");
-            Label lblCheck = new Label("✔ ECUACIÓN CONTABLE VERIFICADA (CÓDIGO 1 = 2 + 3):");
-            lblCheck.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #15803d;");
-            Label lblFormula = new Label("ACTIVO: " + MONEDA.format(balanceActual.getTotalActivo()) +
-                                         "  ==  PASIVO (" + MONEDA.format(balanceActual.getTotalPasivo()) +
-                                         ") + CAPITAL (" + MONEDA.format(balanceActual.getTotalCapitalContable()) +
-                                         ") = " + MONEDA.format(balanceActual.getTotalPasivoMasCapital()));
-            lblFormula.setStyle("-fx-font-weight: bold; -fx-text-fill: #166534; -fx-font-family: 'Consolas', monospace;");
-            banner.getChildren().addAll(lblCheck, lblFormula);
-        } else {
-            banner.setStyle("-fx-background-color: #fee2e2; -fx-background-radius: 10px; -fx-border-color: #fca5a5; -fx-border-radius: 10px;");
-            Label lblErr = new Label("⚠ ATENCIÓN: Descuadre de " + MONEDA.format(balanceActual.getDiferencia()));
-            lblErr.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #b91c1c;");
-            banner.getChildren().add(lblErr);
-        }
 
         // 3. Dos Columnas: Izquierda = Activos, Derecha = Pasivos y Capital
         HBox columnas = new HBox(20);
@@ -193,7 +198,7 @@ public class BalanceGeneralView extends ScrollPane {
 
         columnas.getChildren().addAll(colActivos, colPasivoCapital);
 
-        mainContainer.getChildren().addAll(topBar, banner, columnas);
+        mainContainer.getChildren().addAll(topBar, columnas);
     }
 
     private TableView<BalanceGeneralDTO.LineaBalance> crearTablaLineas(java.util.List<BalanceGeneralDTO.LineaBalance> lineas, String titulo) {
@@ -226,9 +231,32 @@ public class BalanceGeneralView extends ScrollPane {
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarBalanceGeneralHTML(balanceActual, "UNIVERSIDAD CATÓLICA DE EL SALVADOR - EMPRESA PRÁCTICA S.A. DE C.V.", dest);
+                ExportacionService.exportarBalanceGeneralHTML(balanceActual, "Empresa Práctica S.A. de C.V.", dest);
                 Alert a = new Alert(Alert.AlertType.INFORMATION, "Reporte generado con éxito. ¿Desea abrirlo en su navegador para imprimir o guardar como PDF?", ButtonType.YES, ButtonType.NO);
                 a.setTitle("Exportación Formal Exitosa");
+                a.showAndWait().ifPresent(resp -> {
+                    if (resp == ButtonType.YES && Desktop.isDesktopSupported()) {
+                        try { Desktop.getDesktop().open(dest); } catch (Exception ignored) {}
+                    }
+                });
+            } catch (Exception ex) {
+                Alert a = new Alert(Alert.AlertType.ERROR, "Error: " + ex.getMessage());
+                a.showAndWait();
+            }
+        }
+    }
+
+    private void exportarExcel() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Guardar Reporte de Balance General");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Libro de Excel (*.xlsx)", "*.xlsx"));
+        fc.setInitialFileName("Balance_General_" + LocalDate.now() + ".xlsx");
+        File dest = fc.showSaveDialog(getScene().getWindow());
+        if (dest != null) {
+            try {
+                ExportacionService.exportarBalanceGeneralExcel(balanceActual, "Empresa Práctica S.A. de C.V.", dest);
+                Alert a = new Alert(Alert.AlertType.INFORMATION, "Libro de Excel generado con éxito. ¿Desea abrirlo ahora?", ButtonType.YES, ButtonType.NO);
+                a.setTitle("Exportación a Excel Exitosa");
                 a.showAndWait().ifPresent(resp -> {
                     if (resp == ButtonType.YES && Desktop.isDesktopSupported()) {
                         try { Desktop.getDesktop().open(dest); } catch (Exception ignored) {}

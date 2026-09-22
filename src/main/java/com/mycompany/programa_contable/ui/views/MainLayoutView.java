@@ -1,8 +1,6 @@
 package com.mycompany.programa_contable.ui.views;
 
 import com.mycompany.programa_contable.db.DatabaseManager;
-import com.mycompany.programa_contable.model.Usuario;
-import com.mycompany.programa_contable.service.SessionManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -53,14 +51,10 @@ public class MainLayoutView extends BorderPane {
         HBox topbar = new HBox(16);
         topbar.getStyleClass().add("topbar");
         topbar.setAlignment(Pos.CENTER_LEFT);
-        topbar.setPadding(new Insets(14, 28, 14, 28));
+        topbar.setPadding(new Insets(16, 36, 10, 36));
 
-        // Logo / Marca
         Label lblBrand = new Label("FinancePro");
         lblBrand.getStyleClass().add("brand-title");
-
-        Label lblSep = new Label("·");
-        lblSep.setStyle("-fx-text-fill: #e2e8f0; -fx-font-size: 18px;");
 
         Label lblTopTitle = new Label("Sistema Contable Automatizado");
         lblTopTitle.getStyleClass().add("topbar-title");
@@ -69,7 +63,7 @@ public class MainLayoutView extends BorderPane {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         // Botón de demostración
-        Button btnResetDemo = new Button("↺  Datos Demo");
+        Button btnResetDemo = new Button("Datos Demo");
         btnResetDemo.getStyleClass().add("btn-secondary");
         btnResetDemo.setOnAction(e -> {
             Alert confirm = new Alert(
@@ -89,34 +83,21 @@ public class MainLayoutView extends BorderPane {
             });
         });
 
-        // Chip de usuario
-        Usuario u = SessionManager.getInstance().getUsuarioActual();
-        String nombreUsuario = (u != null ? u.getNombreCompleto() : "Admin");
-
-        HBox userChip = new HBox(8);
-        userChip.getStyleClass().add("user-chip");
-        userChip.setAlignment(Pos.CENTER);
-
-        Label lblUserIcon = new Label("👤");
-        lblUserIcon.setStyle("-fx-font-size: 14px;");
-
-        Label lblUser = new Label(nombreUsuario);
-        lblUser.setStyle("-fx-font-weight: 600; -fx-text-fill: #1e293b; -fx-font-size: 13px;");
-
-        userChip.getChildren().addAll(lblUserIcon, lblUser);
-
-        // Botón salir
         Button btnSalir = new Button("Salir");
         btnSalir.getStyleClass().add("btn-logout");
         btnSalir.setOnAction(e -> { if (onLogout != null) onLogout.run(); });
 
-        topbar.getChildren().addAll(lblBrand, lblSep, lblTopTitle, spacer, btnResetDemo, userChip, btnSalir);
+        VBox brandBox = new VBox(2);
+        brandBox.getChildren().addAll(lblBrand, lblTopTitle);
+
+        topbar.getChildren().addAll(brandBox, spacer, btnResetDemo, btnSalir);
+
 
         // ── RIBBON — Barra de navegación ───────────────────────────────────────
         HBox ribbonBar = new HBox(0);
         ribbonBar.getStyleClass().add("ribbon-bar");
         ribbonBar.setAlignment(Pos.CENTER_LEFT);
-        ribbonBar.setPadding(new Insets(0, 20, 0, 20));
+        ribbonBar.setSpacing(24);
 
         Button btnNavDashboard = crearBotonNav("Dashboard", () -> {
             dashboardView.cargarDatos();

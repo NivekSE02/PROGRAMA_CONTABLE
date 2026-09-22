@@ -47,9 +47,9 @@ public class DashboardView extends ScrollPane {
         setFitToWidth(true);
         getStyleClass().add("scroll-pane");
 
-        mainContainer = new VBox(28);
-        mainContainer.setPadding(new Insets(36, 40, 40, 40));
-        mainContainer.setStyle("-fx-background-color: #f1f5f9;");
+        mainContainer = new VBox(24);
+        mainContainer.setPadding(new Insets(32, 40, 40, 40));
+        mainContainer.setStyle("-fx-background-color: #f8fafc;");
         setContent(mainContainer);
         cargarDatos();
     }
@@ -61,13 +61,11 @@ public class DashboardView extends ScrollPane {
         EstadoResultadosDTO er = reportesService.generarEstadoResultados();
         List<Asiento> asientos = libroDiarioDAO.listarAsientos("", "");
 
-        // ══════════════════════════════════════════════════════════════════════
-        // SECCIÓN 1 — CABECERA
-        // ══════════════════════════════════════════════════════════════════════
-        HBox header = new HBox(16);
+        // Cabecera
+        HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleBlock = new VBox(6);
+        VBox titleBlock = new VBox(4);
         Label lblTitle = new Label("Dashboard Financiero");
         lblTitle.getStyleClass().add("page-title");
 
@@ -78,19 +76,13 @@ public class DashboardView extends ScrollPane {
         titleBlock.getChildren().addAll(lblTitle, lblSub);
         HBox.setHgrow(titleBlock, Priority.ALWAYS);
 
-        Button btnRefresh = new Button("↺  Actualizar");
+        Button btnRefresh = new Button("Actualizar");
         btnRefresh.getStyleClass().add("btn-secondary");
         btnRefresh.setOnAction(e -> cargarDatos());
         header.getChildren().addAll(titleBlock, btnRefresh);
 
-        // ══════════════════════════════════════════════════════════════════════
-        // SECCIÓN 2 — BANNER ECUACIÓN PATRIMONIAL (pill estilizado)
-        // ══════════════════════════════════════════════════════════════════════
-        HBox banner = construirBanner(bg);
 
-        // ══════════════════════════════════════════════════════════════════════
-        // SECCIÓN 3 — GRID DE 8 KPI CARDS (4 × 2) CON PADDING GENEROSO
-        // ══════════════════════════════════════════════════════════════════════
+        // KPI cards (4 x 2)
         GridPane kpiGrid = new GridPane();
         kpiGrid.setHgap(20);
         kpiGrid.setVgap(20);
@@ -162,9 +154,7 @@ public class DashboardView extends ScrollPane {
             "card-accent-amber", null, null
         ), 3, 1);
 
-        // ══════════════════════════════════════════════════════════════════════
-        // SECCIÓN 4 — GRÁFICOS (BarChart + PieChart en cards flotantes)
-        // ══════════════════════════════════════════════════════════════════════
+        // Gráficos
         HBox chartsRow = new HBox(20);
 
         // — BarChart card
@@ -227,38 +217,35 @@ public class DashboardView extends ScrollPane {
 
         chartsRow.getChildren().addAll(barCard, pieCard);
 
-        // ══════════════════════════════════════════════════════════════════════
-        // SECCIÓN 5 — TABLA DE ÚLTIMOS ASIENTOS
-        // ══════════════════════════════════════════════════════════════════════
-        VBox tableCard = new VBox(18);
+        // ── Tabla de últimos asientos (ocupa todo el espacio disponible en 1920×1080)
+        VBox tableCard = new VBox(16);
         tableCard.getStyleClass().add("card");
-        tableCard.setPadding(new Insets(28, 28, 24, 28));
+        tableCard.setPadding(new Insets(24, 28, 24, 28));
+        VBox.setVgrow(tableCard, Priority.ALWAYS);
 
         // Header de la sección tabla
-        HBox tableHeader = new HBox(12);
+        HBox tableHeader = new HBox();
         tableHeader.setAlignment(Pos.CENTER_LEFT);
-        VBox tableHeaderText = new VBox(4);
+        VBox tableHeaderText = new VBox(3);
         Label tableTitle = new Label("Últimos Asientos del Libro Diario");
-        tableTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        tableTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
         Label tableSub = new Label("Registro cronológico de operaciones del período");
-        tableSub.setStyle("-fx-font-size: 12px; -fx-text-fill: #94a3b8;");
+        tableSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
         tableHeaderText.getChildren().addAll(tableTitle, tableSub);
         HBox.setHgrow(tableHeaderText, Priority.ALWAYS);
 
-        // Badge contador
         Label lblCount = new Label(asientos.size() + " registros");
-        lblCount.getStyleClass().add("badge-rol");
+        lblCount.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b; -fx-font-weight: 600; -fx-padding: 4 12; -fx-background-color: #f1f5f9; -fx-background-radius: 20px;");
         tableHeader.getChildren().addAll(tableHeaderText, lblCount);
 
         Separator sep = new Separator();
-        sep.setStyle("-fx-padding: 0;");
 
-        // Tabla de asientos — sin bordes propios
+        // Tabla de asientos
         TableView<Asiento> table = new TableView<>();
-        table.setPrefHeight(260);
+        table.setPrefHeight(300);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         table.getStyleClass().add("table-view");
-        table.setStyle("-fx-effect: none; -fx-border-color: transparent;"); // tabla dentro de card no necesita sombra propia
+        table.setStyle("-fx-effect: none; -fx-border-color: transparent;");
 
         TableColumn<Asiento, String> colN = col("N°",
             a -> String.valueOf(a.getNumero()), 50, 55);
@@ -273,7 +260,7 @@ public class DashboardView extends ScrollPane {
             a -> MONEDA.format(a.getTotalHaber()), 130, 135);
         colH.setStyle("-fx-alignment: CENTER-RIGHT;");
         TableColumn<Asiento, String> colE = col("Estado",
-            a -> a.isPartidaDobleValida() ? "✔ Cuadrado" : "⚠ Descuadrado", 120, 130);
+            a -> a.isPartidaDobleValida() ? "Cuadrado" : "Descuadrado", 120, 130);
         colE.setStyle("-fx-alignment: CENTER;");
 
         table.getColumns().addAll(colN, colF, colC, colD, colH, colE);
@@ -282,63 +269,28 @@ public class DashboardView extends ScrollPane {
         tableCard.getChildren().addAll(tableHeader, sep, table);
 
         // ── Ensamblar todo
-        mainContainer.getChildren().addAll(header, banner, kpiGrid, chartsRow, tableCard);
+        mainContainer.getChildren().addAll(header, kpiGrid, chartsRow, tableCard);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private HBox construirBanner(BalanceGeneralDTO bg) {
-        HBox banner = new HBox(14);
-        banner.setAlignment(Pos.CENTER_LEFT);
-
-        if (bg.isCuadrado()) {
-            banner.getStyleClass().add("banner-success");
-            Label dot = new Label("●");
-            dot.setStyle("-fx-text-fill: #16a34a; -fx-font-size: 11px;");
-            Label lbl = new Label("Ecuación Patrimonial Balanceada");
-            lbl.setStyle("-fx-font-weight: 700; -fx-text-fill: #15803d; -fx-font-size: 13px;");
-            Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
-            Label formula = new Label(
-                "Activo " + MONEDA.format(bg.getTotalActivo()) +
-                "  =  Pasivo " + MONEDA.format(bg.getTotalPasivo()) +
-                "  +  Capital " + MONEDA.format(bg.getTotalCapitalContable())
-            );
-            formula.setStyle("-fx-text-fill: #166534; -fx-font-size: 12.5px; -fx-font-family: 'Cascadia Code','Consolas',monospace;");
-            banner.getChildren().addAll(dot, lbl, sp, formula);
-        } else {
-            banner.getStyleClass().add("banner-error");
-            Label dot = new Label("●");
-            dot.setStyle("-fx-text-fill: #dc2626; -fx-font-size: 11px;");
-            Label lbl = new Label("⚠  Descuadre en Balance General");
-            lbl.setStyle("-fx-font-weight: 700; -fx-text-fill: #b91c1c; -fx-font-size: 13px;");
-            Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
-            Label dif = new Label("Diferencia: " + MONEDA.format(bg.getDiferencia()));
-            dif.setStyle("-fx-text-fill: #991b1b; -fx-font-size: 12.5px; -fx-font-weight: 600;");
-            banner.getChildren().addAll(dot, lbl, sp, dif);
-        }
-        return banner;
-    }
 
     /**
      * Tarjeta KPI premium con badge de variación.
      */
     private VBox kpiCard(String titulo, String valor, String subtitulo,
                           String acento, String badge, Boolean positivo) {
-        VBox card = new VBox(0);
+        VBox card = new VBox(4);
         card.getStyleClass().addAll("card", acento);
-        card.setPadding(new Insets(26, 26, 22, 26));
-        card.setSpacing(4);
+        card.setPadding(new Insets(24, 24, 20, 24));
 
-        // Label de categoría pequeño
-        Label lblT = new Label(titulo.toUpperCase());
+        Label lblT = new Label(titulo);
         lblT.getStyleClass().add("card-title");
 
-        // Valor numérico — el protagonista
         Label lblV = new Label(valor);
         lblV.getStyleClass().add("card-value");
-        lblV.setStyle("-fx-font-size: 26px; -fx-font-weight: 700; -fx-padding: 8px 0 2px 0;");
+        lblV.setStyle("-fx-font-size: 28px; -fx-font-weight: 700; -fx-padding: 6px 0 2px 0;");
 
-        // Fila inferior: subtítulo + badge
         HBox bottom = new HBox(8);
         bottom.setAlignment(Pos.CENTER_LEFT);
         Label lblS = new Label(subtitulo);
@@ -349,7 +301,10 @@ public class DashboardView extends ScrollPane {
 
         if (badge != null) {
             Label bdg = new Label(badge);
-            bdg.getStyleClass().add(positivo ? "badge-success" : "badge-error");
+            String badgeStyle = positivo
+                ? "-fx-background-color: #f0fdf4; -fx-text-fill: #15803d; -fx-font-weight: 700; -fx-font-size: 11px; -fx-padding: 3 10; -fx-background-radius: 20px;"
+                : "-fx-background-color: #fff1f2; -fx-text-fill: #881337; -fx-font-weight: 700; -fx-font-size: 11px; -fx-padding: 3 10; -fx-background-radius: 20px;";
+            bdg.setStyle(badgeStyle);
             bottom.getChildren().add(bdg);
         }
 

@@ -6,7 +6,7 @@ import com.mycompany.programa_contable.model.Asiento;
 import com.mycompany.programa_contable.model.Cuenta;
 import com.mycompany.programa_contable.model.DetalleAsiento;
 import com.mycompany.programa_contable.service.ExportacionService;
-import com.mycompany.programa_contable.service.SessionManager;
+
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -53,14 +53,15 @@ public class LibroDiarioView extends VBox {
     private ObservableList<Asiento> listaHistorial;
 
     public LibroDiarioView() {
-        setPadding(new Insets(20));
-        setSpacing(16);
-        setStyle("-fx-background-color: transparent;");
+        setPadding(new Insets(24, 32, 32, 32));
+        setSpacing(0);
+        setStyle("-fx-background-color: #f8fafc;");
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        tabPane.setStyle("-fx-background-color: transparent;");
 
-        Tab tabNuevo = new Tab("Registrar Nuevo Asiento", crearTabNuevoAsiento());
+        Tab tabNuevo = new Tab("Registrar Asiento", crearTabNuevoAsiento());
         Tab tabHistorial = new Tab("Historial del Libro Diario", crearTabHistorial());
 
         tabPane.getTabs().addAll(tabNuevo, tabHistorial);
@@ -70,49 +71,46 @@ public class LibroDiarioView extends VBox {
         recargarHistorial();
     }
 
-    private VBox crearTabNuevoAsiento() {
-        VBox root = new VBox(16);
-        root.setPadding(new Insets(16));
-        root.setStyle("-fx-background-color: #ffffff; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px;");
+    private ScrollPane crearTabNuevoAsiento() {
+        VBox root = new VBox(20);
+        root.setPadding(new Insets(28, 28, 24, 28));
+        root.setStyle("-fx-background-color: #ffffff;");
 
-        // Cabecera del formulario
-        GridPane gridHeader = new GridPane();
-        gridHeader.setHgap(20);
-        gridHeader.setVgap(12);
+        // Cabecera del formulario de registro
+        HBox headerForm = new HBox(32);
+        headerForm.setAlignment(Pos.CENTER_LEFT);
 
-        Label lblNumTitle = new Label("N° de Asiento:");
-        lblNumTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+        VBox numBox = new VBox(6);
+        Label lblNumTitle = new Label("N° de Asiento");
+        lblNumTitle.getStyleClass().add("form-label");
         txtNumero = new TextField();
         txtNumero.setEditable(false);
         txtNumero.setPrefWidth(120);
-        txtNumero.setMinHeight(35);
-        txtNumero.setStyle("-fx-font-weight: bold; -fx-background-color: #f1f5f9; -fx-font-size: 14px;");
+        txtNumero.setStyle("-fx-font-weight: 700; -fx-background-color: #f8fafc; -fx-font-size: 15px;");
         actualizarNumeroAsiento();
+        numBox.getChildren().addAll(lblNumTitle, txtNumero);
 
-        Label lblFecTitle = new Label("Fecha del Asiento:");
-        lblFecTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+        VBox fechaBox = new VBox(6);
+        Label lblFecTitle = new Label("Fecha del Asiento");
+        lblFecTitle.getStyleClass().add("form-label");
         dpFecha = new DatePicker(LocalDate.now());
-        dpFecha.setPrefWidth(180);
-        dpFecha.setMinHeight(35);
-        dpFecha.setStyle("-fx-font-size: 14px;");
+        dpFecha.setPrefWidth(200);
+        fechaBox.getChildren().addAll(lblFecTitle, dpFecha);
 
-        gridHeader.add(lblNumTitle, 0, 0);
-        gridHeader.add(txtNumero, 0, 1);
-        gridHeader.add(lblFecTitle, 1, 0);
-        gridHeader.add(dpFecha, 1, 1);
+        headerForm.getChildren().addAll(numBox, fechaBox);
 
         // Barra de acciones para renglones
-        HBox barAcciones = new HBox(15);
+        HBox barAcciones = new HBox(12);
         barAcciones.setAlignment(Pos.CENTER_LEFT);
-        barAcciones.setPadding(new Insets(10, 0, 10, 0));
+        barAcciones.setPadding(new Insets(14, 16, 14, 16));
+        barAcciones.setStyle("-fx-background-color: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-radius: 8px; -fx-background-radius: 8px;");
 
         List<Cuenta> cuentasPermitidas = cuentaDAO.listarPermitenMovimiento();
         ObservableList<Cuenta> itemsOriginales = FXCollections.observableArrayList(cuentasPermitidas);
         ComboBox<Cuenta> cbCuenta = new ComboBox<>(itemsOriginales);
-        cbCuenta.setPromptText("Seleccione una cuenta del catálogo...");
-        cbCuenta.setPrefWidth(450);
-        cbCuenta.setMinHeight(40);
-        cbCuenta.setStyle("-fx-font-size: 14px;");
+        cbCuenta.setPromptText("Cuenta contable...");
+        cbCuenta.setPrefWidth(420);
+        cbCuenta.setMinHeight(38);
         
         // Habilitar búsqueda por texto
         cbCuenta.setEditable(true);
@@ -148,18 +146,15 @@ public class LibroDiarioView extends VBox {
         TextField txtMontoDebe = new TextField("0.00");
         txtMontoDebe.setPromptText("Debe");
         txtMontoDebe.setPrefWidth(130);
-        txtMontoDebe.setMinHeight(40);
-        txtMontoDebe.setStyle("-fx-font-size: 14px;");
+        txtMontoDebe.setMinHeight(38);
 
         TextField txtMontoHaber = new TextField("0.00");
         txtMontoHaber.setPromptText("Haber");
         txtMontoHaber.setPrefWidth(130);
-        txtMontoHaber.setMinHeight(40);
-        txtMontoHaber.setStyle("-fx-font-size: 14px;");
+        txtMontoHaber.setMinHeight(38);
 
         Button btnAgregarLinea = new Button("Agregar Renglón");
-        btnAgregarLinea.setMinSize(150, 40);
-        btnAgregarLinea.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-cursor: hand;");
+        btnAgregarLinea.setMinSize(150, 38);
         btnAgregarLinea.getStyleClass().add("btn-primary");
         
         btnAgregarLinea.setOnAction(e -> {
@@ -229,8 +224,7 @@ public class LibroDiarioView extends VBox {
         });
 
         Button btnEliminarLinea = new Button("Quitar Renglón");
-        btnEliminarLinea.setMinSize(150, 40);
-        btnEliminarLinea.setStyle("-fx-font-size: 14px; -fx-cursor: hand;");
+        btnEliminarLinea.setMinSize(140, 38);
         btnEliminarLinea.getStyleClass().add("btn-secondary");
         btnEliminarLinea.setOnAction(e -> {
             DetalleAsiento sel = tblDetalle.getSelectionModel().getSelectedItem();
@@ -247,18 +241,17 @@ public class LibroDiarioView extends VBox {
 
         barAcciones.getChildren().addAll(
             new Label("Cuenta:"), cbCuenta,
-            new Label("Debe ($):"), txtMontoDebe,
-            new Label("Haber ($):"), txtMontoHaber,
-            btnAgregarLinea,
-            btnEliminarLinea
+            new Label("  Debe ($):"), txtMontoDebe,
+            new Label("  Haber ($):"), txtMontoHaber,
+            btnAgregarLinea, btnEliminarLinea
         );
 
         // Tabla de Detalle del Asiento
         tblDetalle = new TableView<>();
         lineasAsiento = FXCollections.observableArrayList();
         tblDetalle.setItems(lineasAsiento);
-        tblDetalle.setStyle("-fx-font-size: 14px;");
-        VBox.setVgrow(tblDetalle, Priority.ALWAYS);
+        tblDetalle.setPrefHeight(250);
+        tblDetalle.setMinHeight(200);
 
         TableColumn<DetalleAsiento, Number> colRenglon = new TableColumn<>("#");
         colRenglon.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().getRenglon()));
@@ -296,87 +289,96 @@ public class LibroDiarioView extends VBox {
         tblDetalle.getColumns().addAll(colRenglon, colCod, colNom, colParcial, colDebe, colHaber);
 
         // Area de Comentario
-        HBox boxComentario = new HBox(15);
-        boxComentario.setAlignment(Pos.CENTER_LEFT);
-        boxComentario.setPadding(new Insets(10, 0, 10, 0));
-        Label lblComentario = new Label("Comentario del Asiento (Opcional):");
-        lblComentario.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        VBox boxComentario = new VBox(6);
+        boxComentario.setPadding(new Insets(4, 0, 0, 0));
+        Label lblComentario = new Label("Comentario del Asiento (Opcional)");
+        lblComentario.getStyleClass().add("form-label");
         txtComentarioAsiento = new TextField();
         txtComentarioAsiento.setPromptText("Ej. Pago de factura a proveedores con transferencia bancaria...");
         txtComentarioAsiento.setMinHeight(40);
-        txtComentarioAsiento.setStyle("-fx-font-size: 14px;");
-        HBox.setHgrow(txtComentarioAsiento, Priority.ALWAYS);
         boxComentario.getChildren().addAll(lblComentario, txtComentarioAsiento);
 
-        // Panel de Cuadre y Validación Obligatoria de Partida Doble
+        // Panel de Cuadre de Partida Doble
         HBox panelCuadre = new HBox(20);
         panelCuadre.setAlignment(Pos.CENTER_LEFT);
-        panelCuadre.setPadding(new Insets(15, 20, 15, 20));
+        panelCuadre.setPadding(new Insets(16, 20, 16, 20));
         panelCuadre.setStyle("-fx-background-color: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-radius: 8px; -fx-background-radius: 8px;");
 
-        lblTotalDebe = new Label("Total Debe: $0.00");
-        lblTotalDebe.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #1e293b;");
+        lblTotalDebe = new Label("Debe: $0.00");
+        lblTotalDebe.setStyle("-fx-font-weight: 700; -fx-font-size: 15px; -fx-text-fill: #0f172a;");
 
-        lblTotalHaber = new Label("Total Haber: $0.00");
-        lblTotalHaber.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #1e293b;");
+        lblTotalHaber = new Label("Haber: $0.00");
+        lblTotalHaber.setStyle("-fx-font-weight: 700; -fx-font-size: 15px; -fx-text-fill: #0f172a;");
 
         lblDiferencia = new Label("Diferencia: $0.00");
-        lblDiferencia.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #dc2626;");
+        lblDiferencia.setStyle("-fx-font-weight: 700; -fx-font-size: 15px; -fx-text-fill: #881337;");
 
-        lblBadgeCuadre = new Label("ASIENTO VACÍO");
-        lblBadgeCuadre.getStyleClass().add("badge-descuadrado");
-        lblBadgeCuadre.setStyle("-fx-font-size: 14px; -fx-padding: 8 12;");
+        lblBadgeCuadre = new Label("INGRESE PARTIDAS");
+        lblBadgeCuadre.setStyle("-fx-font-size: 13px; -fx-padding: 6 14; -fx-background-color: #f1f5f9; -fx-border-color: #e2e8f0; -fx-border-radius: 6px; -fx-background-radius: 6px;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        btnGuardar = new Button("Guardar Asiento en Libro Diario");
-        btnGuardar.setMinSize(250, 45);
-        btnGuardar.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-cursor: hand;");
-        btnGuardar.getStyleClass().add("btn-success");
-        btnGuardar.setDisable(true); // Bloqueado por defecto hasta cumplir Partida Doble
+        btnGuardar = new Button("Guardar Asiento");
+        btnGuardar.setMinSize(200, 40);
+        btnGuardar.getStyleClass().add("btn-primary");
+        btnGuardar.setDisable(true);
         btnGuardar.setOnAction(e -> guardarAsiento());
 
         Button btnLimpiar = new Button("Limpiar Formulario");
-        btnLimpiar.setMinSize(180, 45);
-        btnLimpiar.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-cursor: hand;");
+        btnLimpiar.setMinSize(160, 40);
         btnLimpiar.getStyleClass().add("btn-secondary");
         btnLimpiar.setOnAction(e -> limpiarFormulario());
 
         panelCuadre.getChildren().addAll(lblTotalDebe, lblTotalHaber, lblDiferencia, lblBadgeCuadre, spacer, btnLimpiar, btnGuardar);
 
-        root.getChildren().addAll(gridHeader, new Separator(), barAcciones, tblDetalle, boxComentario, panelCuadre);
+        root.getChildren().addAll(headerForm, new Separator(), barAcciones, tblDetalle, boxComentario, panelCuadre);
         actualizarCuadre();
-        return root;
+        
+        ScrollPane sp = new ScrollPane(root);
+        sp.setFitToWidth(true);
+        sp.getStyleClass().add("scroll-pane");
+        sp.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        return sp;
     }
 
     private VBox crearTabHistorial() {
-        VBox root = new VBox(15);
-        root.setPadding(new Insets(20));
-        root.setStyle("-fx-background-color: #ffffff; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px;");
+        VBox root = new VBox(16);
+        root.setPadding(new Insets(24, 28, 24, 28));
+        root.setStyle("-fx-background-color: #ffffff;");
+        VBox.setVgrow(root, Priority.ALWAYS);
 
-        HBox topBar = new HBox(15);
+        HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
-        Label lblHist = new Label("Registro Cronológico de Transacciones (Libro Diario)");
-        lblHist.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        HBox.setHgrow(lblHist, Priority.ALWAYS);
+        VBox titleBox = new VBox(3);
+        Label lblHist = new Label("Historial del Libro Diario");
+        lblHist.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblHistSub = new Label("Registro cronológico de transacciones del período");
+        lblHistSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        titleBox.getChildren().addAll(lblHist, lblHistSub);
+        HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        Button btnExportarCSV = new Button("Exportar Libro Diario a CSV");
-        btnExportarCSV.setMinSize(200, 40);
-        btnExportarCSV.setStyle("-fx-font-size: 14px; -fx-cursor: hand;");
-        btnExportarCSV.getStyleClass().add("btn-secondary");
-        btnExportarCSV.setOnAction(e -> exportarHistorialCSV());
+        MenuButton btnExportar = new MenuButton("Exportar");
+        btnExportar.setMinSize(160, 36);
+        btnExportar.getStyleClass().add("btn-secondary");
+        btnExportar.getStyleClass().add("export-button");
+        btnExportar.setStyle("-fx-text-fill: white;");
+        MenuItem mnuCsv = new MenuItem("Exportar a CSV");
+        mnuCsv.getStyleClass().add("export-menu-item");
+        mnuCsv.setOnAction(e -> exportarHistorialCSV());
+        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
+        mnuExcel.getStyleClass().add("export-menu-item");
+        mnuExcel.setOnAction(e -> exportarHistorialExcel());
+        btnExportar.getItems().addAll(mnuCsv, mnuExcel);
 
         Button btnRefrescar = new Button("Refrescar");
-        btnRefrescar.setMinSize(120, 40);
-        btnRefrescar.setStyle("-fx-font-size: 14px; -fx-cursor: hand;");
+        btnRefrescar.setMinSize(110, 36);
         btnRefrescar.getStyleClass().add("btn-secondary");
         btnRefrescar.setOnAction(e -> recargarHistorial());
 
-        Button btnEliminar = new Button("Eliminar Asiento Seleccionado");
-        btnEliminar.setMinSize(220, 40);
-        btnEliminar.setStyle("-fx-font-size: 14px; -fx-cursor: hand;");
+        Button btnEliminar = new Button("Eliminar Seleccionado");
+        btnEliminar.setMinSize(180, 36);
         btnEliminar.getStyleClass().add("btn-danger");
         btnEliminar.setOnAction(e -> {
             Asiento sel = tblHistorial.getSelectionModel().getSelectedItem();
@@ -395,14 +397,14 @@ public class LibroDiarioView extends VBox {
             });
         });
 
-        topBar.getChildren().addAll(lblHist, btnExportarCSV, btnRefrescar, btnEliminar);
+        topBar.getChildren().addAll(titleBox, btnExportar, btnRefrescar, btnEliminar);
 
         // Tabla de Asientos
         tblHistorial = new TableView<>();
         listaHistorial = FXCollections.observableArrayList();
         tblHistorial.setItems(listaHistorial);
-        tblHistorial.setPrefHeight(280);
-        tblHistorial.setStyle("-fx-font-size: 14px;");
+        tblHistorial.setPrefHeight(240);
+        VBox.setVgrow(tblHistorial, Priority.ALWAYS);
 
         TableColumn<Asiento, Number> colNum = new TableColumn<>("N° Asiento");
         colNum.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().getNumero()));
@@ -426,19 +428,13 @@ public class LibroDiarioView extends VBox {
         colHab.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
         colHab.setPrefWidth(140);
 
-        TableColumn<Asiento, String> colUser = new TableColumn<>("Registrado Por");
-        colUser.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getUsuarioNombre() != null ? c.getValue().getUsuarioNombre() : "Sistema"));
-        colUser.setPrefWidth(180);
+        tblHistorial.getColumns().addAll(colNum, colFec, colCon, colDeb, colHab);
 
-        tblHistorial.getColumns().addAll(colNum, colFec, colCon, colDeb, colHab, colUser);
-
-        // Tabla de detalle del asiento seleccionado en el historial
-        Label lblDet = new Label("Detalle de Partidas del Asiento Seleccionado:");
-        lblDet.setStyle("-fx-font-weight: bold; -fx-font-size: 15px; -fx-text-fill: #475569; -fx-padding: 10 0 5 0;");
+        Label lblDet = new Label("Detalle del Asiento Seleccionado");
+        lblDet.setStyle("-fx-font-weight: 700; -fx-font-size: 14px; -fx-text-fill: #475569; -fx-padding: 8 0 4 0;");
 
         tblDetalleHistorial = new TableView<>();
         VBox.setVgrow(tblDetalleHistorial, Priority.ALWAYS);
-        tblDetalleHistorial.setStyle("-fx-font-size: 14px;");
 
         TableColumn<DetalleAsiento, Number> dColReng = new TableColumn<>("Renglón");
         dColReng.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().getRenglon()));
@@ -508,18 +504,17 @@ public class LibroDiarioView extends VBox {
 
         if (lineasAsiento.isEmpty()) {
             lblBadgeCuadre.setText("INGRESE PARTIDAS");
-            lblBadgeCuadre.getStyleClass().add("badge-descuadrado");
+            lblBadgeCuadre.setStyle("-fx-font-size: 13px; -fx-padding: 6 14; -fx-background-color: #f1f5f9; -fx-border-color: #e2e8f0; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-text-fill: #64748b;");
             btnGuardar.setDisable(true);
-            btnGuardar.setTooltip(new Tooltip("Agregue al menos dos renglones contables."));
         } else if (esValido) {
-            lblBadgeCuadre.setText("PARTIDA DOBLE CUADRADA - LISTO PARA GUARDAR");
-            lblBadgeCuadre.getStyleClass().add("badge-cuadrado");
-            btnGuardar.setDisable(false); // Desbloquear guardado
+            lblBadgeCuadre.setText("PARTIDA DOBLE CUADRADA");
+            lblBadgeCuadre.setStyle("-fx-font-size: 13px; -fx-padding: 6 14; -fx-background-color: #f0fdf4; -fx-border-color: #bbf7d0; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-text-fill: #15803d; -fx-font-weight: 700;");
+            btnGuardar.setDisable(false);
             btnGuardar.setTooltip(new Tooltip("El asiento cumple la Partida Doble y puede guardarse."));
         } else {
-            lblBadgeCuadre.setText("DESCUADRADO (Diferencia: " + MONEDA.format(diff) + ") - GUARDADO BLOQUEADO");
-            lblBadgeCuadre.getStyleClass().add("badge-descuadrado");
-            btnGuardar.setDisable(true); // BLOQUEO OBLIGATORIO SEGÚN REQUERIMIENTO
+            lblBadgeCuadre.setText("DESCUADRADO: " + MONEDA.format(diff));
+            lblBadgeCuadre.setStyle("-fx-font-size: 13px; -fx-padding: 6 14; -fx-background-color: #fff1f2; -fx-border-color: #fecaca; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-text-fill: #881337; -fx-font-weight: 700;");
+            btnGuardar.setDisable(true);
             btnGuardar.setTooltip(new Tooltip("Bloqueado: La suma del Debe debe ser exactamente igual a la suma del Haber."));
         }
     }
@@ -537,10 +532,7 @@ public class LibroDiarioView extends VBox {
         }
 
         int numero = Integer.parseInt(txtNumero.getText().trim());
-        int usuarioId = SessionManager.getInstance().getUsuarioActual() != null
-            ? SessionManager.getInstance().getUsuarioActual().getId() : 1;
-
-        Asiento asiento = new Asiento(numero, fecha.toString(), concepto, usuarioId);
+        Asiento asiento = new Asiento(numero, fecha.toString(), concepto);
         for (DetalleAsiento det : lineasAsiento) {
             asiento.agregarDetalle(det);
         }
@@ -604,6 +596,28 @@ public class LibroDiarioView extends VBox {
             }
         }
     }
+    
+    private void exportarHistorialExcel() {
+        if (listaHistorial.isEmpty()) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Sin Datos", "No hay asientos registrados para exportar.");
+            return;
+        }
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Guardar Reporte en Excel");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Libro de Excel (*.xlsx)", "*.xlsx"));
+        fc.setInitialFileName("Libro_Diario_" + LocalDate.now() + ".xlsx");
+        File dest = fc.showSaveDialog(getScene().getWindow());
+        if (dest != null) {
+            try {
+                ExportacionService.exportarLibroDiarioExcel(listaHistorial, dest);
+                Alert a = new Alert(Alert.AlertType.INFORMATION, "Libro Diario exportado a Excel correctamente.");
+                a.showAndWait();
+            } catch (Exception ex) {
+                Alert a = new Alert(Alert.AlertType.ERROR, "Error al exportar a Excel: " + ex.getMessage());
+                a.showAndWait();
+            }
+        }
+    }
 
     private double parseMonto(String val) {
         if (val == null || val.trim().isEmpty()) return 0.0;
@@ -664,7 +678,7 @@ public class LibroDiarioView extends VBox {
                 lineasAsiento.size() + 1,
                 cuentaPrincipal.getCodigo(),
                 cuentaPrincipal.getNombre(),
-                "", // SIN PARCIAL
+                "",
                 debeVal,
                 haberVal
             );

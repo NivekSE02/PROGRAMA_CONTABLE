@@ -33,10 +33,8 @@ public class LibroDiarioDAO {
     public List<Asiento> listarAsientos(String fechaDesde, String fechaHasta) {
         List<Asiento> lista = new ArrayList<>();
         StringBuilder sb = new StringBuilder(
-            "SELECT a.id, a.numero, a.fecha, a.concepto, a.total_debe, a.total_haber, a.usuario_id, " +
-            "u.nombre_completo as usuario_nombre, a.created_at " +
+            "SELECT a.id, a.numero, a.fecha, a.concepto, a.total_debe, a.total_haber, a.created_at " +
             "FROM asientos a " +
-            "LEFT JOIN usuarios u ON a.usuario_id = u.id " +
             "WHERE 1=1 "
         );
 
@@ -59,8 +57,6 @@ public class LibroDiarioDAO {
                 as.setConcepto(rs.getString("concepto"));
                 as.setTotalDebe(rs.getDouble("total_debe"));
                 as.setTotalHaber(rs.getDouble("total_haber"));
-                as.setUsuarioId(rs.getInt("usuario_id"));
-                as.setUsuarioNombre(rs.getString("usuario_nombre"));
                 as.setCreatedAt(rs.getString("created_at"));
                 as.setDetalles(cargarDetalles(conn, as.getId()));
                 lista.add(as);
@@ -98,14 +94,7 @@ public class LibroDiarioDAO {
         return detalles;
     }
 
-    /**
-     * Registra un nuevo asiento contable con atomicidad (transacción ACID)
-     * y validación estricta de Partida Doble (Total Debe == Total Haber).
-     */
     public boolean registrarAsiento(Asiento asiento) throws IllegalArgumentException, SQLException {
-        // -----------------------------------------------------------------
-        // PASO 0: CONSULTAR CONFIGURACIÓN Y PARÁMETROS ANTES DE VALIDAR
-        // -----------------------------------------------------------------
         double costoDinamico = 0.0;
         double precioVentaDinamico = 0.0;
         
@@ -136,13 +125,13 @@ public class LibroDiarioDAO {
             );
         }
 
-        String sqlAsiento = "INSERT INTO asientos (numero, fecha, concepto, total_debe, total_haber, usuario_id) VALUES (?, ?, ?, ?, ?, ?)";
+        String sqlAsiento = "INSERT INTO asientos (numero, fecha, concepto, total_debe, total_haber) VALUES (?, ?, ?, ?, ?)";
         String sqlDetalle = "INSERT INTO detalle_asiento (asiento_id, renglon, cuenta_codigo, concepto_linea, debe, haber) VALUES (?, ?, ?, ?, ?, ?)";
 
         Connection conn = null;
         try {
             conn = dbManager.getConnection();
-            conn.setAutoCommit(false); // Transacción atómica
+            conn.setAutoCommit(false);
 
             int asientoId = 0;
             try (PreparedStatement psAsiento = conn.prepareStatement(sqlAsiento, Statement.RETURN_GENERATED_KEYS)) {
@@ -151,11 +140,6 @@ public class LibroDiarioDAO {
                 psAsiento.setString(3, asiento.getConcepto());
                 psAsiento.setDouble(4, asiento.getTotalDebe());
                 psAsiento.setDouble(5, asiento.getTotalHaber());
-                if (asiento.getUsuarioId() > 0) {
-                    psAsiento.setInt(6, asiento.getUsuarioId());
-                } else {
-                    psAsiento.setNull(6, java.sql.Types.INTEGER);
-                }
 
                 psAsiento.executeUpdate();
                 try (ResultSet rsKeys = psAsiento.getGeneratedKeys()) {
@@ -185,15 +169,12 @@ public class LibroDiarioDAO {
                 psDet.executeBatch();
             }
 
-            // -----------------------------------------------------------------
-            // AUTOMATIZACIÓN KÁRDEX (ENTRADAS Y SALIDAS)
-            // -----------------------------------------------------------------
             KardexService kardexService = new KardexService();
 
             for (DetalleAsiento det : asiento.getDetalles()) {
                 String cuenta = det.getCuentaCodigo();
-                
-                // 1. INVENTARIO INICIAL (Detecta si es 1.2 o si el concepto/parcial trae el valor de inventario)
+
+                // Inventario inicial: cuenta 1.2 en el asiento #1
                 boolean esInventarioInicial = ("1.2".equals(cuenta) || "1".equals(cuenta)) && asiento.getNumero() == 1;
                 
                 if (esInventarioInicial) {
@@ -216,7 +197,7 @@ public class LibroDiarioDAO {
                     }
                 }
                 
-                // 2. COMPRAS NUEVAS (Afectando la cuenta 5.4 Compras al Debe)
+                // Compras: cuenta 5.4 al Debe
                 else if (("5.4".equals(cuenta) || cuenta.startsWith("5.4")) && det.getDebe() > 0) {
                     int cantidadComprada = (int) Math.round(det.getDebe() / costoDinamico);
                     if (cantidadComprada <= 0) cantidadComprada = 1;
@@ -227,8 +208,28 @@ public class LibroDiarioDAO {
                     break; 
                 }
                 
-                // 3. VENTAS (Afectando cuentas de ingresos 4.x al Haber)
-                else if ("4".equals(cuenta) || "4.1".equals(cuenta) || cuenta.startsWith("4.")) {
+                // Devolución sobre compras: la mercancía vuelve al proveedor.
+                else if ("5.1".equals(cuenta) && det.getHaber() > 0) {
+                    int cantidadDevuelta = (int) Math.round(det.getHaber() / costoDinamico);
+                    if (cantidadDevuelta <= 0) cantidadDevuelta = 1;
+                    kardexService.registrarMovimientoConConexión(
+                        conn, 1, asiento.getFecha(), "SALIDA", cantidadDevuelta, costoDinamico, asientoId
+                    );
+                    break;
+                }
+
+                // Devolución sobre ventas: el cliente devuelve mercancía a bodega.
+                else if ("4.2".equals(cuenta) && det.getDebe() > 0) {
+                    int cantidadDevuelta = (int) Math.round(det.getDebe() / precioVentaDinamico);
+                    if (cantidadDevuelta <= 0) cantidadDevuelta = 1;
+                    kardexService.registrarMovimientoConConexión(
+                        conn, 1, asiento.getFecha(), "ENTRADA", cantidadDevuelta, costoDinamico, asientoId
+                    );
+                    break;
+                }
+
+                // Ventas reales: únicamente la cuenta 4.1 acreditada genera costo de venta.
+                else if ("4.1".equals(cuenta) && det.getHaber() > 0) {
                     double montoVenta = det.getHaber();
                     if (montoVenta <= 0 && det.getConceptoLinea() != null) {
                         try {
@@ -249,8 +250,7 @@ public class LibroDiarioDAO {
                     }
                 }
             }
-            // -----------------------------------------------------------------
-            conn.commit(); // Se confirma todo de forma atómica
+            conn.commit();
             return true;
         } catch (Exception e) {
             if (conn != null) {

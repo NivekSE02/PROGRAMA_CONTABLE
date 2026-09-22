@@ -7,10 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Pruebas unitarias para la Validación Obligatoria de la Partida Doble
- * Requerimiento: "El sistema debe bloquear el guardado si el asiento no cumple la Partida Doble"
- */
 public class PartidaDobleTest {
 
     @Test

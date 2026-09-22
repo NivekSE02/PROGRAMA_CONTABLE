@@ -28,15 +28,16 @@ public class LibroMayorView extends VBox {
     private Label lblDetalleCuenta;
 
     public LibroMayorView() {
-        setPadding(new Insets(20));
-        setSpacing(16);
-        setStyle("-fx-background-color: transparent;");
+        setPadding(new Insets(24, 32, 32, 32));
+        setSpacing(0);
+        setStyle("-fx-background-color: #f8fafc;");
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        tabPane.setStyle("-fx-background-color: transparent;");
 
-        Tab tabConsolidado = new Tab("📊 Consolidación en Tiempo Real", crearTabConsolidado());
-        Tab tabCuentasT = new Tab("⚖️ Esquemas de Mayor (Cuentas 'T')", crearTabCuentasT());
+        Tab tabConsolidado = new Tab("Consolidación en Tiempo Real", crearTabConsolidado());
+        Tab tabCuentasT = new Tab("Esquemas de Mayor (Cuentas T)", crearTabCuentasT());
 
         tabPane.getTabs().addAll(tabConsolidado, tabCuentasT);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
@@ -46,22 +47,27 @@ public class LibroMayorView extends VBox {
     }
 
     private VBox crearTabConsolidado() {
-        VBox root = new VBox(12);
-        root.setPadding(new Insets(16));
-        root.setStyle("-fx-background-color: #ffffff; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px;");
+        VBox root = new VBox(16);
+        root.setPadding(new Insets(24, 28, 24, 28));
+        root.setStyle("-fx-background-color: #ffffff;");
+        VBox.setVgrow(root, Priority.ALWAYS);
 
         HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
-        Label lblTitle = new Label("Consolidación Automática de Débitos, Créditos y Saldos");
-        lblTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        HBox.setHgrow(lblTitle, Priority.ALWAYS);
+        VBox titleBlock = new VBox(2);
+        Label lblTitle = new Label("Consolidación de Saldos");
+        lblTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblTitleSub = new Label("Débitos, créditos y saldos calculados automáticamente en tiempo real");
+        lblTitleSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        titleBlock.getChildren().addAll(lblTitle, lblTitleSub);
+        HBox.setHgrow(titleBlock, Priority.ALWAYS);
 
-        Button btnRefrescar = new Button("🔄 Actualizar en Tiempo Real");
+        Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
         btnRefrescar.setOnAction(e -> recargarMayorizacion());
 
-        topBar.getChildren().addAll(lblTitle, btnRefrescar);
+        topBar.getChildren().addAll(titleBlock, btnRefrescar);
 
         // Tabla Consolidada de Cuentas Mayorizadas
         tblConsolidado = new TableView<>();

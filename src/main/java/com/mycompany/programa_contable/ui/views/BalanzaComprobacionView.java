@@ -29,34 +29,40 @@ public class BalanzaComprobacionView extends VBox {
     private BalanzaComprobacionDTO balanzaActual;
 
     public BalanzaComprobacionView() {
-        setPadding(new Insets(20));
-        setSpacing(16);
-        setStyle("-fx-background-color: transparent;");
+        setPadding(new Insets(24, 32, 32, 32));
+        setSpacing(0);
+        setStyle("-fx-background-color: #f8fafc;");
 
-        VBox card = new VBox(16);
-        card.setPadding(new Insets(20));
-        card.setStyle("-fx-background-color: #ffffff; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px;");
+        VBox card = new VBox(20);
+        card.setPadding(new Insets(28));
+        card.getStyleClass().add("card");
         VBox.setVgrow(card, Priority.ALWAYS);
 
-        // Cabecera institucional del reporte
+        // Cabecera
         HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleBox = new VBox(4);
-        Label lblEmpresa = new Label("UNIVERSIDAD CATÓLICA DE EL SALVADOR - EMPRESA PRÁCTICA S.A. DE C.V.");
-        lblEmpresa.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
-        Label lblTitulo = new Label("BALANZA DE COMPROBACIÓN DE SUMAS Y SALDOS");
-        lblTitulo.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        Label lblPeriodo = new Label("Período Actual | Expresado en Dólares de los Estados Unidos de América (USD)");
-        lblPeriodo.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
-        titleBox.getChildren().addAll(lblEmpresa, lblTitulo, lblPeriodo);
+        VBox titleBox = new VBox(3);
+        Label lblTitulo = new Label("Balanza de Comprobación");
+        lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblPeriodo = new Label("Sumas y Saldos — Expresado en USD");
+        lblPeriodo.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        titleBox.getChildren().addAll(lblTitulo, lblPeriodo);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        Button btnExportar = new Button("📥 Exportar a CSV");
+        MenuButton btnExportar = new MenuButton("Exportar");
         btnExportar.getStyleClass().add("btn-secondary");
-        btnExportar.setOnAction(e -> exportarCSV());
+        btnExportar.getStyleClass().add("export-button");
+        btnExportar.setStyle("-fx-text-fill: white;");
+        MenuItem mnuCsv = new MenuItem("Exportar a CSV");
+        mnuCsv.getStyleClass().add("export-menu-item");
+        mnuCsv.setOnAction(e -> exportarCSV());
+        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
+        mnuExcel.getStyleClass().add("export-menu-item");
+        mnuExcel.setOnAction(e -> exportarExcel());
+        btnExportar.getItems().addAll(mnuCsv, mnuExcel);
 
-        Button btnRefrescar = new Button("🔄 Actualizar");
+        Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
         btnRefrescar.setOnAction(e -> cargarDatos());
 
@@ -159,11 +165,11 @@ public class BalanzaComprobacionView extends VBox {
 
         lblStatusCuadre.getStyleClass().removeAll("badge-cuadrado", "badge-descuadrado");
         if (balanzaActual.isCuadrada()) {
-            lblStatusCuadre.setText("✔ BALANZA CUADRADA EXACTAMENTE");
-            lblStatusCuadre.getStyleClass().add("badge-cuadrado");
+            lblStatusCuadre.setText("BALANZA CUADRADA");
+            lblStatusCuadre.setStyle("-fx-font-size: 12px; -fx-padding: 5 12; -fx-background-color: #f0fdf4; -fx-border-color: #bbf7d0; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-text-fill: #15803d; -fx-font-weight: 700;");
         } else {
-            lblStatusCuadre.setText("⚠ DESCUADRE EN BALANZA");
-            lblStatusCuadre.getStyleClass().add("badge-descuadrado");
+            lblStatusCuadre.setText("DESCUADRE");
+            lblStatusCuadre.setStyle("-fx-font-size: 12px; -fx-padding: 5 12; -fx-background-color: #fff1f2; -fx-border-color: #fecaca; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-text-fill: #881337; -fx-font-weight: 700;");
         }
     }
 
@@ -181,6 +187,25 @@ public class BalanzaComprobacionView extends VBox {
                 a.showAndWait();
             } catch (Exception ex) {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Error: " + ex.getMessage());
+                a.showAndWait();
+            }
+        }
+    }
+    
+    private void exportarExcel() {
+        if (balanzaActual == null || balanzaActual.getRenglones().isEmpty()) return;
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Guardar Reporte en Excel");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Libro de Excel (*.xlsx)", "*.xlsx"));
+        fc.setInitialFileName("Balanza_Comprobacion_" + LocalDate.now() + ".xlsx");
+        File dest = fc.showSaveDialog(getScene().getWindow());
+        if (dest != null) {
+            try {
+                ExportacionService.exportarBalanzaComprobacionExcel(balanzaActual, dest);
+                Alert a = new Alert(Alert.AlertType.INFORMATION, "Balanza exportada a Excel correctamente.");
+                a.showAndWait();
+            } catch (Exception ex) {
+                Alert a = new Alert(Alert.AlertType.ERROR, "Error al exportar a Excel: " + ex.getMessage());
                 a.showAndWait();
             }
         }

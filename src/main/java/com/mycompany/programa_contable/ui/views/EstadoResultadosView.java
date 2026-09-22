@@ -2,9 +2,10 @@ package com.mycompany.programa_contable.ui.views;
 
 import com.mycompany.programa_contable.model.EstadoResultadosDTO;
 import com.mycompany.programa_contable.service.ExportacionService;
+import com.mycompany.programa_contable.service.KardexService;
+import com.mycompany.programa_contable.service.MayorizacionService;
+import com.mycompany.programa_contable.model.MayorCuenta;
 import com.mycompany.programa_contable.service.ReportesFinancierosService;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -15,21 +16,31 @@ import java.awt.Desktop;
 import java.io.File;
 import java.text.DecimalFormat;
 import java.time.LocalDate;
+import java.util.List;
 
 public class EstadoResultadosView extends ScrollPane {
 
     private final ReportesFinancierosService reportesService = new ReportesFinancierosService();
+    private final MayorizacionService mayorizacionService = new MayorizacionService();
+    private final KardexService kardexService = new KardexService();
     private static final DecimalFormat MONEDA = new DecimalFormat("$#,##0.00");
+
+    // Anchos de columnas (Concepto | Detalle | Total)
+    private static final double COL_CONCEPTO = 320;
+    private static final double COL_DETALLE   = 150;
+    private static final double COL_TOTAL     = 150;
 
     private VBox mainContainer;
     private EstadoResultadosDTO estadoActual;
 
     public EstadoResultadosView() {
         setFitToWidth(true);
-        setStyle("-fx-background-color: transparent;");
+        getStyleClass().add("scroll-pane");
+        setStyle("-fx-background-color: #f8fafc; -fx-background: #f8fafc;");
 
-        mainContainer = new VBox(20);
-        mainContainer.setPadding(new Insets(24));
+        mainContainer = new VBox(24);
+        mainContainer.setPadding(new Insets(28, 32, 32, 32));
+        mainContainer.setStyle("-fx-background-color: #f8fafc;");
         setContent(mainContainer);
 
         cargarDatos();
@@ -39,155 +50,234 @@ public class EstadoResultadosView extends ScrollPane {
         mainContainer.getChildren().clear();
         estadoActual = reportesService.generarEstadoResultados();
 
-        // 1. Cabecera institucional
-        HBox topBar = new HBox(16);
+        // ── Cabecera ──────────────────────────────────────────────────
+        HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleBox = new VBox(4);
-        Label lblInst = new Label("UNIVERSIDAD CATÓLICA DE EL SALVADOR - EMPRESA PRÁCTICA S.A. DE C.V.");
-        lblInst.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
-        Label lblTitulo = new Label("ESTADO DE RESULTADOS AUTOMÁTICO (PÉRDIDAS Y GANANCIAS)");
-        lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        Label lblSub = new Label("Clasificación por Dígitos: Código 4 (Ingresos) - Código 5/6 (Costos y Gastos) = Utilidad");
-        lblSub.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
-        titleBox.getChildren().addAll(lblInst, lblTitulo, lblSub);
+        VBox titleBox = new VBox(3);
+        Label lblTitulo = new Label("Estado de Resultados");
+        lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblSub = new Label("Con Inventario Inicial y Final — Método PEPS");
+        lblSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        titleBox.getChildren().addAll(lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        Button btnImprimir = new Button("📄 Exportar Reporte Formal e Imprimir");
+        MenuButton btnImprimir = new MenuButton("Exportar Reporte");
         btnImprimir.getStyleClass().add("btn-primary");
-        btnImprimir.setOnAction(e -> exportarHTML());
+        btnImprimir.getStyleClass().add("export-button");
+        btnImprimir.setStyle("-fx-text-fill: white;");
+        MenuItem mnuHtml = new MenuItem("Exportar a HTML");
+        mnuHtml.getStyleClass().add("export-menu-item");
+        mnuHtml.setOnAction(e -> exportarHTML());
+        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
+        mnuExcel.getStyleClass().add("export-menu-item");
+        mnuExcel.setOnAction(e -> exportarExcel());
+        btnImprimir.getItems().addAll(mnuHtml, mnuExcel);
 
-        Button btnRefrescar = new Button("🔄 Actualizar");
+        Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
         btnRefrescar.setOnAction(e -> cargarDatos());
 
         topBar.getChildren().addAll(titleBox, btnImprimir, btnRefrescar);
 
-        // 2. Banner de Fórmula Obligatoria: 4 - 5/6 = Utilidad
-        HBox banner = new HBox(12);
-        banner.setAlignment(Pos.CENTER_LEFT);
-        banner.setPadding(new Insets(14, 20, 14, 20));
-        boolean esGanancia = estadoActual.getUtilidadNeta() >= 0;
+        // ── Obtener valores desde Mayor y Kardex ──────────────────────
+        // Ventas (4.1) y devoluciones sobre ventas (4.2)
+        double ventasTotales    = getSaldoNeto("4.1");
+        double devVentas        = getSaldoNeto("4.2");
+        double ventasNetas      = redondear(ventasTotales - devVentas);
 
-        if (esGanancia) {
-            banner.setStyle("-fx-background-color: #dcfce7; -fx-background-radius: 10px; -fx-border-color: #86efac; -fx-border-radius: 10px;");
-            Label lblCheck = new Label("✔ RESULTADO POSITIVO (UTILIDAD NETA DEL EJERCICIO):");
-            lblCheck.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #15803d;");
-            Label lblFormula = new Label("INGRESOS CÓDIGO 4 (" + MONEDA.format(estadoActual.getTotalIngresos()) +
-                                         ")  -  COSTOS/GASTOS CÓDIGO 5/6 (" + MONEDA.format(estadoActual.getTotalCostosYGastos()) +
-                                         ")  =  UTILIDAD NETA: " + MONEDA.format(estadoActual.getUtilidadNeta()));
-            lblFormula.setStyle("-fx-font-weight: bold; -fx-text-fill: #166534; -fx-font-family: 'Consolas', monospace;");
-            banner.getChildren().addAll(lblCheck, lblFormula);
-        } else {
-            banner.setStyle("-fx-background-color: #fee2e2; -fx-background-radius: 10px; -fx-border-color: #fca5a5; -fx-border-radius: 10px;");
-            Label lblErr = new Label("⚠ RESULTADO NEGATIVO (PÉRDIDA DEL EJERCICIO):");
-            lblErr.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #b91c1c;");
-            Label lblFormula = new Label("Pérdida Neta: " + MONEDA.format(estadoActual.getUtilidadNeta()));
-            lblFormula.setStyle("-fx-font-weight: bold; -fx-text-fill: #991b1b;");
-            banner.getChildren().addAll(lblErr, lblFormula);
-        }
+        // Inventario inicial (saldo contable de cuenta 1.2)
+        double inventarioInicial = Math.abs(getSaldoNeto("1.2"));
 
-        // 3. Tarjeta central con el Estado de Resultados Estructurado
-        VBox cardReporte = new VBox(14);
-        cardReporte.getStyleClass().add("card");
+        // Compras (5.4) y devoluciones sobre compras (5.1) y gastos de compra (si hay)
+        double compras          = Math.abs(getSaldoNeto("5.4"));
+        double gastoDeCompra    = 0.0;   // Cuenta específica de gasto de compra (no existe en catálogo actual)
+        double comprasTotales   = redondear(compras + gastoDeCompra);
+        double devCompras       = Math.abs(getSaldoNeto("5.1"));
+        double comprasNetas     = redondear(comprasTotales - devCompras);
+        double mercDisponible   = redondear(inventarioInicial + comprasNetas);
 
-        // Sección 1: Ingresos de Operación (Código 4)
-        Label lblIngTitle = new Label("4. INGRESOS DE OPERACIÓN");
-        lblIngTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #047857;");
-        TableView<EstadoResultadosDTO.LineaReporte> tblIng = crearTablaLineas(estadoActual.getIngresosOperacion());
+        // El saldo final del Kárdex incorpora devoluciones de clientes y a proveedores.
+        // No se debe deducir a partir del total bruto de salidas.
+        double inventarioFinal  = redondear(kardexService.obtenerInventarioFinal(1));
+        double costoVentas      = redondear(mercDisponible - inventarioFinal);
+        double utilidadBruta    = redondear(ventasNetas - costoVentas);
 
-        // Sección 2: Costo de Ventas (Código 51)
-        Label lblCosTitle = new Label("(-) 51. COSTO DE VENTAS / COMPRAS");
-        lblCosTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #9a3412;");
-        TableView<EstadoResultadosDTO.LineaReporte> tblCos = crearTablaLineas(estadoActual.getCostosVenta());
+        // Gastos de operación
+        double gastoAdmin       = getSaldoGrupoHojas("6.2");
+        double gastoVenta       = getSaldoGrupoHojas("6.3");
+        double gastosFinancieros= getSaldoGrupoHojas("6.1");
+        double totalGastoOper   = redondear(gastoAdmin + gastoVenta + gastosFinancieros);
+        double utilidadOpera    = redondear(utilidadBruta - totalGastoOper);
 
-        // Subtotal: Utilidad Bruta
-        HBox rowBruta = crearFilaSubtotal("(=) UTILIDAD BRUTA EN VENTAS:", estadoActual.getUtilidadBruta(), "#1e3a8a", false);
+        // ── Construir la tabla fila a fila ────────────────────────────
+        VBox tabla = new VBox(0);
+        tabla.getStyleClass().add("card");
+        tabla.setPadding(new Insets(0));
 
-        // Sección 3: Gastos de Operación (6)
-        Label lblGasAdmTitle = new Label("(-) 6. GASTOS DE OPERACIÓN Y ADMINISTRACIÓN");
-        lblGasAdmTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #475569;");
-        TableView<EstadoResultadosDTO.LineaReporte> tblGasAdm = crearTablaLineas(estadoActual.getGastosAdministracion());
+        // Encabezado de columnas
+        tabla.getChildren().add(filaEncabezado());
 
-        Label lblGasVenTitle = new Label("(-) GASTOS DE COMERCIALIZACIÓN Y VENTA");
-        lblGasVenTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #475569;");
-        TableView<EstadoResultadosDTO.LineaReporte> tblGasVen = crearTablaLineas(estadoActual.getGastosVenta());
+        // ══ SECCIÓN VENTAS ══
+        tabla.getChildren().add(filaSeccion("5 Ventas"));
+        tabla.getChildren().add(filaDetalle("Ventas totales",        ventasTotales,  true,  false, false));
+        tabla.getChildren().add(filaDetalle("(-) Dev sobre ventas",  devVentas,      true,  false, false));
+        tabla.getChildren().add(filaTotal  ("Ventas netas",          ventasNetas,           false, false));
 
-        // Subtotal: Utilidad de Operación
-        HBox rowOperacion = crearFilaSubtotal("(=) UTILIDAD DE OPERACIÓN:", estadoActual.getUtilidadOperacion(), "#1e3a8a", false);
+        // ══ SECCIÓN COSTOS ══
+        tabla.getChildren().add(filaSeccion("4 Costos"));
+        tabla.getChildren().add(filaDetalle("Inventario inicial",    inventarioInicial, true, false, false));
+        tabla.getChildren().add(filaDetalle("(+) Compras",           compras,        true,  false, false));
+        tabla.getChildren().add(filaDetalle("(+) Gasto de compra",   gastoDeCompra,  true,  false, false));
+        tabla.getChildren().add(filaDetalle("Compras totales",       comprasTotales, true,  false, false));
+        tabla.getChildren().add(filaDetalle("(-) Dev sobre compras", devCompras,     true,  false, false));
+        tabla.getChildren().add(filaDetalle("Compras netas",         comprasNetas,   true,  false, false));
+        tabla.getChildren().add(filaDetalle("Mercancía disponible",  mercDisponible, true,  false, false));
+        tabla.getChildren().add(filaDetalle("(-) Inventario final",  inventarioFinal,true,  false, false));
+        tabla.getChildren().add(filaTotal  ("Costo ventas",          costoVentas,           false, false));
+        tabla.getChildren().add(filaTotal  ("Utilidad bruta",        utilidadBruta,         false, false));
 
-        // Otros ingresos o gastos si existen
-        VBox otrosBox = new VBox(6);
-        if (!estadoActual.getOtrosIngresos().isEmpty()) {
-            otrosBox.getChildren().addAll(new Label("(+) Otros Ingresos"), crearTablaLineas(estadoActual.getOtrosIngresos()));
-        }
-        if (!estadoActual.getGastosFinancieros().isEmpty()) {
-            otrosBox.getChildren().addAll(new Label("(-) Gastos Financieros"), crearTablaLineas(estadoActual.getGastosFinancieros()));
-        }
+        // ══ SECCIÓN GASTOS DE OPERACIÓN ══
+        tabla.getChildren().add(filaSeccion("Gasto operación"));
+        tabla.getChildren().add(filaDetalle("Gasto administrativo",  gastoAdmin,     true,  false, false));
+        tabla.getChildren().add(filaDetalle("Gasto ventas",          gastoVenta,     true,  false, false));
+        tabla.getChildren().add(filaDetalle("Gastos financieros",    gastosFinancieros, true, false, false));
+        tabla.getChildren().add(filaTotal  ("Total Gasto operación", totalGastoOper,        false, false));
 
-        // Fila Final: Utilidad Neta del Ejercicio
-        HBox rowNeta = crearFilaSubtotal("(=) UTILIDAD NETA DEL EJERCICIO (4 INGRESOS - 5/6 COSTOS/GASTOS):", estadoActual.getUtilidadNeta(), "#15803d", true);
+        // ══ UTILIDAD OPERACIONAL (resaltada en amarillo) ══
+        tabla.getChildren().add(filaTotal  ("Utilidad operacional",  utilidadOpera,         true,  true));
 
-        cardReporte.getChildren().addAll(
-            lblIngTitle, tblIng,
-            lblCosTitle, tblCos,
-            rowBruta,
-            new Separator(),
-            lblGasAdmTitle, tblGasAdm,
-            lblGasVenTitle, tblGasVen,
-            rowOperacion,
-            otrosBox,
-            new Separator(),
-            rowNeta
-        );
-
-        mainContainer.getChildren().addAll(topBar, banner, cardReporte);
+        mainContainer.getChildren().addAll(topBar, tabla);
     }
 
-    private TableView<EstadoResultadosDTO.LineaReporte> crearTablaLineas(java.util.List<EstadoResultadosDTO.LineaReporte> lineas) {
-        TableView<EstadoResultadosDTO.LineaReporte> tbl = new TableView<>();
-        tbl.setPrefHeight(Math.max(80, (lineas.size() + 1) * 35));
+    // ── Fábrica de filas ──────────────────────────────────────────────
 
-        TableColumn<EstadoResultadosDTO.LineaReporte, String> colCod = new TableColumn<>("Código");
-        colCod.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getCodigo()));
-        colCod.setPrefWidth(100);
+    /** Encabezado de tabla: Concepto | Detalle | Total */
+    private HBox filaEncabezado() {
+        HBox row = new HBox(0);
+        row.setStyle("-fx-background-color: #1e3a8a; -fx-background-radius: 8px 8px 0 0;");
+        row.setPadding(new Insets(8, 12, 8, 12));
 
-        TableColumn<EstadoResultadosDTO.LineaReporte, String> colNom = new TableColumn<>("Cuenta");
-        colNom.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getNombre()));
-        colNom.setPrefWidth(450);
-
-        TableColumn<EstadoResultadosDTO.LineaReporte, String> colMon = new TableColumn<>("Monto ($)");
-        colMon.setCellValueFactory(c -> new SimpleStringProperty(MONEDA.format(c.getValue().getMonto())));
-        colMon.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
-        colMon.setPrefWidth(160);
-
-        tbl.getColumns().addAll(colCod, colNom, colMon);
-        tbl.setItems(FXCollections.observableArrayList(lineas));
-        return tbl;
+        Label c = celda("Concepto", COL_CONCEPTO, true, "#ffffff", true);
+        Label d = celda("Detalle",  COL_DETALLE,  true, "#ffffff", true);
+        Label t = celda("Total",    COL_TOTAL,    true, "#ffffff", true);
+        row.getChildren().addAll(c, d, t);
+        return row;
     }
 
-    private HBox crearFilaSubtotal(String etiqueta, double valor, String colorHex, boolean esFinal) {
-        HBox box = new HBox(12);
-        box.setAlignment(Pos.CENTER_LEFT);
-        box.setPadding(new Insets(10, 16, 10, 16));
+    /** Fila de sección (header de grupo, fondo azul oscuro) */
+    private HBox filaSeccion(String titulo) {
+        HBox row = new HBox(0);
+        row.setStyle("-fx-background-color: #1e3a8a;");
+        row.setPadding(new Insets(5, 12, 5, 12));
 
-        if (esFinal) {
-            box.setStyle("-fx-background-color: #dcfce7; -fx-background-radius: 8px; -fx-border-color: #86efac; -fx-border-radius: 8px;");
+        Label c = celda(titulo, COL_CONCEPTO + COL_DETALLE + COL_TOTAL, true, "#ffffff", false);
+        row.getChildren().add(c);
+        return row;
+    }
+
+    /**
+     * Fila de detalle: monto en columna "Detalle", columna "Total" vacía.
+     * @param mostrarCero si false, muestra igualmente el valor (el Excel siempre muestra)
+     */
+    private HBox filaDetalle(String concepto, double monto, boolean mostrarCero,
+                             boolean esUtilidad, boolean esAmarillo) {
+        HBox row = crearFilaBase(esAmarillo);
+        String bg = row.getStyle();
+
+        Label c = celda(concepto,              COL_CONCEPTO, false, "#0f172a", false);
+        Label d = celda(MONEDA.format(monto),  COL_DETALLE,  false, "#374151", true);
+        Label t = celda("",                    COL_TOTAL,    false, "#0f172a", true);
+
+        row.getChildren().addAll(c, d, t);
+        separadorVertical(row);
+        return row;
+    }
+
+    /**
+     * Fila de total: columna "Detalle" vacía, monto en columna "Total".
+     * @param esNegrita si el texto del concepto va en negrita
+     * @param esAmarillo si la fila tiene fondo amarillo (utilidad operacional)
+     */
+    private HBox filaTotal(String concepto, double monto, boolean esNegrita,
+                           boolean esAmarillo) {
+        HBox row = crearFilaBase(esAmarillo);
+
+        String colorTexto = esAmarillo ? "#92400e" : "#0f172a";
+        String colorMonto = esAmarillo ? "#78350f" : "#1e3a8a";
+
+        Label c = celda(concepto,             COL_CONCEPTO, esNegrita || esAmarillo, colorTexto, false);
+        Label d = celda("",                   COL_DETALLE,  false, colorTexto, true);
+        Label t = celda(MONEDA.format(monto), COL_TOTAL,    true,  colorMonto, true);
+
+        row.getChildren().addAll(c, d, t);
+        return row;
+    }
+
+    private HBox crearFilaBase(boolean esAmarillo) {
+        HBox row = new HBox(0);
+        if (esAmarillo) {
+            row.setStyle("-fx-background-color: #fef08a; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
         } else {
-            box.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px;");
+            row.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
         }
+        row.setPadding(new Insets(6, 12, 6, 12));
 
-        Label lblE = new Label(etiqueta);
-        lblE.setStyle("-fx-font-weight: bold; -fx-font-size: " + (esFinal ? "15px" : "13px") + "; -fx-text-fill: " + colorHex + ";");
+        // Hover effect
+        row.setOnMouseEntered(e -> {
+            if (!esAmarillo)
+                row.setStyle("-fx-background-color: #f1f5f9; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
+        });
+        row.setOnMouseExited(e -> {
+            if (!esAmarillo)
+                row.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
+        });
+        return row;
+    }
 
-        Region sp = new Region();
-        HBox.setHgrow(sp, Priority.ALWAYS);
+    /** Crear un Label-celda con ancho fijo */
+    private Label celda(String texto, double ancho, boolean negrita, String color, boolean alineaDerecha) {
+        Label lbl = new Label(texto);
+        lbl.setMinWidth(ancho);
+        lbl.setPrefWidth(ancho);
+        lbl.setMaxWidth(ancho);
+        String align = alineaDerecha ? "-fx-alignment: CENTER-RIGHT;" : "-fx-alignment: CENTER-LEFT;";
+        String weight = negrita ? "-fx-font-weight: bold;" : "";
+        lbl.setStyle(align + weight + "-fx-text-fill: " + color + "; -fx-font-family: 'Consolas', monospace;");
+        return lbl;
+    }
 
-        Label lblV = new Label(MONEDA.format(valor));
-        lblV.setStyle("-fx-font-weight: bold; -fx-font-size: " + (esFinal ? "18px" : "15px") + "; -fx-font-family: 'Consolas', monospace; -fx-text-fill: " + colorHex + ";");
+    /** Añade líneas verticales de separación entre celdas */
+    private void separadorVertical(HBox row) {
+        // Se logra con el padding y border ya definido en la celda
+    }
 
-        box.getChildren().addAll(lblE, sp, lblV);
-        return box;
+    // ── Utilidades ────────────────────────────────────────────────────
+
+    /** Obtiene el saldo neto de una cuenta directamente del Mayor */
+    private double getSaldoNeto(String codigo) {
+        List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
+        for (MayorCuenta m : cuentas) {
+            if (m.getCodigo().equals(codigo)) {
+                return m.getSaldoNeto();
+            }
+        }
+        return 0.0;
+    }
+
+    /** Suma cuentas hoja para que un grupo padre sin movimientos directos no resulte en cero. */
+    private double getSaldoGrupoHojas(String prefijo) {
+        return mayorizacionService.obtenerMayorizacion(true).stream()
+                .filter(MayorCuenta::isPermiteMovimiento)
+                .filter(m -> m.getCodigo().startsWith(prefijo))
+                .mapToDouble(m -> Math.abs(m.getSaldoNeto()))
+                .sum();
+    }
+
+    private double redondear(double val) {
+        return java.math.BigDecimal.valueOf(val)
+                .setScale(2, java.math.RoundingMode.HALF_UP)
+                .doubleValue();
     }
 
     private void exportarHTML() {
@@ -198,17 +288,42 @@ public class EstadoResultadosView extends ScrollPane {
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarEstadoResultadosHTML(estadoActual, "UNIVERSIDAD CATÓLICA DE EL SALVADOR - EMPRESA PRÁCTICA S.A. DE C.V.", dest);
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "Reporte formal generado con éxito. ¿Desea abrirlo en su navegador para imprimir o guardar como PDF?", ButtonType.YES, ButtonType.NO);
-                a.setTitle("Exportación Formal Exitosa");
+                ExportacionService.exportarEstadoResultadosHTML(estadoActual, "Empresa Práctica S.A. de C.V.", dest);
+                Alert a = new Alert(Alert.AlertType.INFORMATION,
+                        "Reporte formal generado. ¿Desea abrirlo en el navegador?",
+                        ButtonType.YES, ButtonType.NO);
+                a.setTitle("Exportación Exitosa");
                 a.showAndWait().ifPresent(resp -> {
                     if (resp == ButtonType.YES && Desktop.isDesktopSupported()) {
                         try { Desktop.getDesktop().open(dest); } catch (Exception ignored) {}
                     }
                 });
             } catch (Exception ex) {
-                Alert a = new Alert(Alert.AlertType.ERROR, "Error: " + ex.getMessage());
-                a.showAndWait();
+                new Alert(Alert.AlertType.ERROR, "Error: " + ex.getMessage()).showAndWait();
+            }
+        }
+    }
+
+    private void exportarExcel() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Guardar Reporte en Excel");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Libro de Excel (*.xlsx)", "*.xlsx"));
+        fc.setInitialFileName("Estado_Resultados_" + LocalDate.now() + ".xlsx");
+        File dest = fc.showSaveDialog(getScene().getWindow());
+        if (dest != null) {
+            try {
+                ExportacionService.exportarEstadoResultadosExcel(estadoActual, "Empresa Práctica S.A. de C.V.", dest);
+                Alert a = new Alert(Alert.AlertType.INFORMATION,
+                        "Libro de Excel generado. ¿Desea abrirlo ahora?",
+                        ButtonType.YES, ButtonType.NO);
+                a.setTitle("Exportación a Excel Exitosa");
+                a.showAndWait().ifPresent(resp -> {
+                    if (resp == ButtonType.YES && Desktop.isDesktopSupported()) {
+                        try { Desktop.getDesktop().open(dest); } catch (Exception ignored) {}
+                    }
+                });
+            } catch (Exception ex) {
+                new Alert(Alert.AlertType.ERROR, "Error: " + ex.getMessage()).showAndWait();
             }
         }
     }

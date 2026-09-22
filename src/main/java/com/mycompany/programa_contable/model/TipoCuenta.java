@@ -1,16 +1,5 @@
 package com.mycompany.programa_contable.model;
 
-/**
- * Clasificación principal de las cuentas según su código.
- *
- * 1 = ACTIVO
- * 2 = PASIVO
- * 3 = PATRIMONIO
- * 4 = INGRESOS
- * 5 = COSTOS
- * 6 = GASTOS
- * 7 = CUENTAS DE ORDEN
- */
 public enum TipoCuenta {
 
     ACTIVO(
@@ -95,9 +84,6 @@ public enum TipoCuenta {
         return naturalezaPorDefecto;
     }
 
-    /**
-     * Determina el tipo de cuenta a partir del primer dígito del código.
-     */
     public static TipoCuenta desdeCodigo(String codigo) {
 
         if (codigo == null || codigo.trim().isEmpty()) {

@@ -4,7 +4,6 @@ import com.mycompany.programa_contable.dao.CuentaDAO;
 import com.mycompany.programa_contable.model.Cuenta;
 import com.mycompany.programa_contable.model.NaturalezaCuenta;
 import com.mycompany.programa_contable.model.TipoCuenta;
-import com.mycompany.programa_contable.service.SessionManager;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -34,35 +33,40 @@ public class CatalogoCuentasView extends VBox {
     private Button btnGuardar;
 
     public CatalogoCuentasView() {
-        setPadding(new Insets(20));
+        setPadding(new Insets(24, 32, 32, 32));
         setSpacing(16);
-        setStyle("-fx-background-color: transparent;");
+        setStyle("-fx-background-color: #f8fafc;");
 
-        HBox mainBox = new HBox(16);
+        HBox mainBox = new HBox(20);
         VBox.setVgrow(mainBox, Priority.ALWAYS);
 
         // Panel Izquierdo: Tabla y Buscador
-        VBox leftPane = new VBox(12);
+        VBox leftPane = new VBox(16);
         leftPane.getStyleClass().add("card");
+        leftPane.setPadding(new Insets(24));
         HBox.setHgrow(leftPane, Priority.ALWAYS);
 
         HBox barBusqueda = new HBox(12);
         barBusqueda.setAlignment(Pos.CENTER_LEFT);
 
-        Label lblTitle = new Label("Catálogo de Cuentas Contables (NIIF para PYMES)");
-        lblTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        HBox.setHgrow(lblTitle, Priority.ALWAYS);
+        VBox titleBox = new VBox(2);
+        Label lblTitle = new Label("Catálogo de Cuentas");
+        lblTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblTitleSub = new Label("NIIF para PYMES — Clasificación por dígitos");
+        lblTitleSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        titleBox.getChildren().addAll(lblTitle, lblTitleSub);
+        HBox.setHgrow(titleBox, Priority.ALWAYS);
 
         txtBuscar = new TextField();
-        txtBuscar.setPromptText("🔍 Buscar por código o nombre...");
+        txtBuscar.setPromptText("Buscar por código o nombre...");
         txtBuscar.setPrefWidth(260);
         txtBuscar.textProperty().addListener((obs, oldV, newV) -> filtrarCuentas(newV));
 
-        Button btnRefrescar = new Button("🔄");
+        Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
         btnRefrescar.setOnAction(e -> recargarCuentas());
 
-        barBusqueda.getChildren().addAll(lblTitle, txtBuscar, btnRefrescar);
+        barBusqueda.getChildren().addAll(titleBox, txtBuscar, btnRefrescar);
 
         tblCuentas = new TableView<>();
         listaCuentas = FXCollections.observableArrayList();
@@ -78,7 +82,8 @@ public class CatalogoCuentasView extends VBox {
         colNom.setPrefWidth(260);
 
         TableColumn<Cuenta, String> colTip = new TableColumn<>("Clase / Dígito");
-        colTip.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getTipo().getDigito() + " - " + c.getValue().getTipo().getNombre()));
+        colTip.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().getTipo().getDigito() + " - " + c.getValue().getTipo().getNombre()));
         colTip.setPrefWidth(160);
 
         TableColumn<Cuenta, String> colNat = new TableColumn<>("Naturaleza");
@@ -86,7 +91,8 @@ public class CatalogoCuentasView extends VBox {
         colNat.setPrefWidth(100);
 
         TableColumn<Cuenta, String> colMov = new TableColumn<>("Uso");
-        colMov.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().isPermiteMovimiento() ? "Detalle" : "Mayor / Título"));
+        colMov.setCellValueFactory(
+                c -> new SimpleStringProperty(c.getValue().isPermiteMovimiento() ? "Detalle" : "Mayor / Título"));
         colMov.setPrefWidth(110);
 
         tblCuentas.getColumns().addAll(colCod, colNom, colTip, colNat, colMov);
@@ -94,12 +100,18 @@ public class CatalogoCuentasView extends VBox {
         leftPane.getChildren().addAll(barBusqueda, tblCuentas);
 
         // Panel Derecho: Registro de Nueva Cuenta
-        VBox rightPane = new VBox(14);
+        VBox rightPane = new VBox(16);
         rightPane.getStyleClass().add("card");
-        rightPane.setPrefWidth(320);
+        rightPane.setPadding(new Insets(24));
+        rightPane.setPrefWidth(360);
+        rightPane.setMinWidth(320);
 
-        Label lblFormTitle = new Label("Registrar Nueva Cuenta");
-        lblFormTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        VBox formTitleBox = new VBox(2);
+        Label lblFormTitle = new Label("Nueva Cuenta");
+        lblFormTitle.setStyle("-fx-font-size: 17px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblFormSub = new Label("Completar para registrar o editar");
+        lblFormSub.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+        formTitleBox.getChildren().addAll(lblFormTitle, lblFormSub);
 
         Label lblCod = new Label("Código Contable:");
         lblCod.getStyleClass().add("form-label");
@@ -131,28 +143,27 @@ public class CatalogoCuentasView extends VBox {
         chkMovimiento = new CheckBox("Permite Movimiento (Cuenta de Detalle)");
         chkMovimiento.setSelected(true);
 
-        btnGuardar = new Button("💾 Guardar Cuenta");
+        btnGuardar = new Button("Guardar Cuenta");
         btnGuardar.getStyleClass().add("btn-primary");
         btnGuardar.setMaxWidth(Double.MAX_VALUE);
         btnGuardar.setOnAction(e -> guardarCuenta());
 
-        Button btnEliminar = new Button("🗑️ Eliminar Seleccionada");
+        Button btnEliminar = new Button("Eliminar Seleccionada");
         btnEliminar.getStyleClass().add("btn-danger");
         btnEliminar.setMaxWidth(Double.MAX_VALUE);
         btnEliminar.setOnAction(e -> eliminarCuenta());
 
         rightPane.getChildren().addAll(
-            lblFormTitle,
-            new Separator(),
-            new VBox(4, lblCod, txtCodigo),
-            new VBox(4, lblNom, txtNombre),
-            new VBox(4, lblTip, cbTipo),
-            new VBox(4, lblNat, cbNaturaleza),
-            chkMovimiento,
-            btnGuardar,
-            new Separator(),
-            btnEliminar
-        );
+                formTitleBox,
+                new Separator(),
+                new VBox(6, lblCod, txtCodigo),
+                new VBox(6, lblNom, txtNombre),
+                new VBox(6, lblTip, cbTipo),
+                new VBox(6, lblNat, cbNaturaleza),
+                chkMovimiento,
+                btnGuardar,
+                new Separator(),
+                btnEliminar);
 
         mainBox.getChildren().addAll(leftPane, rightPane);
         getChildren().add(mainBox);
@@ -175,14 +186,6 @@ public class CatalogoCuentasView extends VBox {
     }
 
     private void guardarCuenta() {
-        if (!SessionManager.getInstance().puedeModificarCatalogo()) {
-            Alert a = new Alert(Alert.AlertType.WARNING, "Acceso Restringido", ButtonType.OK);
-            a.setHeaderText("Permiso Insuficiente");
-            a.setContentText("Solo los usuarios con rol de ADMINISTRADOR pueden agregar o modificar cuentas del catálogo.");
-            a.showAndWait();
-            return;
-        }
-
         String codigo = txtCodigo.getText().trim();
         String nombre = txtNombre.getText().trim();
         TipoCuenta tipo = cbTipo.getValue();
@@ -207,25 +210,20 @@ public class CatalogoCuentasView extends VBox {
 
         boolean exito = cuentaDAO.insertar(nueva);
         if (exito) {
-            Alert a = new Alert(Alert.AlertType.INFORMATION, "Cuenta agregada exitosamente al catálogo contable.", ButtonType.OK);
+            Alert a = new Alert(Alert.AlertType.INFORMATION, "Cuenta agregada exitosamente al catálogo contable.",
+                    ButtonType.OK);
             a.showAndWait();
             txtCodigo.clear();
             txtNombre.clear();
             recargarCuentas();
         } else {
-            Alert a = new Alert(Alert.AlertType.ERROR, "No se pudo guardar la cuenta (es posible que el código ya exista).", ButtonType.OK);
+            Alert a = new Alert(Alert.AlertType.ERROR,
+                    "No se pudo guardar la cuenta (es posible que el código ya exista).", ButtonType.OK);
             a.showAndWait();
         }
     }
 
     private void eliminarCuenta() {
-        if (!SessionManager.getInstance().puedeModificarCatalogo()) {
-            Alert a = new Alert(Alert.AlertType.WARNING, "Acceso Restringido", ButtonType.OK);
-            a.setContentText("Solo los administradores pueden eliminar cuentas.");
-            a.showAndWait();
-            return;
-        }
-
         Cuenta sel = tblCuentas.getSelectionModel().getSelectedItem();
         if (sel == null) {
             Alert a = new Alert(Alert.AlertType.WARNING, "Seleccione una cuenta para eliminar.", ButtonType.OK);
@@ -234,12 +232,15 @@ public class CatalogoCuentasView extends VBox {
         }
 
         if (cuentaDAO.tieneMovimientos(sel.getCodigo())) {
-            Alert a = new Alert(Alert.AlertType.ERROR, "No se puede eliminar la cuenta " + sel.getCodigo() + " porque ya tiene movimientos registrados en el Libro Diario.", ButtonType.OK);
+            Alert a = new Alert(Alert.AlertType.ERROR, "No se puede eliminar la cuenta " + sel.getCodigo()
+                    + " porque ya tiene movimientos registrados en el Libro Diario.", ButtonType.OK);
             a.showAndWait();
             return;
         }
 
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "¿Está seguro de eliminar la cuenta " + sel.getCodigo() + " - " + sel.getNombre() + "?", ButtonType.YES, ButtonType.NO);
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "¿Está seguro de eliminar la cuenta " + sel.getCodigo() + " - " + sel.getNombre() + "?", ButtonType.YES,
+                ButtonType.NO);
         confirm.showAndWait().ifPresent(resp -> {
             if (resp == ButtonType.YES) {
                 cuentaDAO.eliminar(sel.getCodigo());
