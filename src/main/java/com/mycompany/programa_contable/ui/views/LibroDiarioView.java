@@ -30,6 +30,7 @@ import java.util.List;
 public class LibroDiarioView extends VBox {
 
     private final LibroDiarioDAO libroDiarioDAO = new LibroDiarioDAO();
+    private final com.mycompany.programa_contable.dao.AsientoPredefinidoDAO asientoPredefinidoDAO = new com.mycompany.programa_contable.dao.AsientoPredefinidoDAO();
     private final CuentaDAO cuentaDAO = new CuentaDAO();
     private final com.mycompany.programa_contable.model.ConfiguracionDAO configuracionDAO = new com.mycompany.programa_contable.model.ConfiguracionDAO();
     private static final DecimalFormat MONEDA = new DecimalFormat("$#,##0.00");
@@ -280,6 +281,8 @@ public class LibroDiarioView extends VBox {
         colParcial.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getConceptoLinea()));
         colParcial.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
         colParcial.setPrefWidth(150);
+        colParcial.setCellFactory(TextFieldTableCell.forTableColumn());
+        colParcial.setOnEditCommit(e -> { e.getRowValue().setConceptoLinea(e.getNewValue()); tblDetalle.refresh(); });
 
         TableColumn<DetalleAsiento, String> colDebe = new TableColumn<>("Debe ($)");
         colDebe.setCellValueFactory(c -> {
@@ -288,6 +291,8 @@ public class LibroDiarioView extends VBox {
         });
         colDebe.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
         colDebe.setPrefWidth(150);
+        colDebe.setCellFactory(TextFieldTableCell.forTableColumn());
+        colDebe.setOnEditCommit(e -> actualizarMontoDesdeTabla(e.getRowValue(), parseMonto(e.getNewValue()), true));
 
         TableColumn<DetalleAsiento, String> colHaber = new TableColumn<>("Haber ($)");
         colHaber.setCellValueFactory(c -> {
@@ -296,8 +301,22 @@ public class LibroDiarioView extends VBox {
         });
         colHaber.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
         colHaber.setPrefWidth(150);
+        colHaber.setCellFactory(TextFieldTableCell.forTableColumn());
+        colHaber.setOnEditCommit(e -> actualizarMontoDesdeTabla(e.getRowValue(), parseMonto(e.getNewValue()), false));
 
         tblDetalle.getColumns().addAll(colRenglon, colCod, colNom, colParcial, colDebe, colHaber);
+        tblDetalle.setEditable(true);
+        colParcial.setEditable(true); colDebe.setEditable(true); colHaber.setEditable(true);
+
+        MenuButton btnPlantillas = new MenuButton("Asientos precargados");
+        btnPlantillas.getStyleClass().add("btn-secondary");
+        MenuItem guardarPlantilla = new MenuItem("Guardar asiento actual como plantilla...");
+        guardarPlantilla.setOnAction(e -> guardarPlantilla());
+        MenuItem cargarPlantilla = new MenuItem("Cargar plantilla...");
+        cargarPlantilla.setOnAction(e -> cargarPlantilla());
+        MenuItem borrarPlantilla = new MenuItem("Eliminar plantilla...");
+        borrarPlantilla.setOnAction(e -> eliminarPlantilla());
+        btnPlantillas.getItems().addAll(guardarPlantilla, cargarPlantilla, borrarPlantilla);
 
         // Area de Comentario
         VBox boxComentario = new VBox(6);
@@ -343,7 +362,7 @@ public class LibroDiarioView extends VBox {
 
         panelCuadre.getChildren().addAll(lblTotalDebe, lblTotalHaber, lblDiferencia, lblBadgeCuadre, spacer, btnLimpiar, btnGuardar);
 
-        root.getChildren().addAll(headerForm, new Separator(), barAcciones, tblDetalle, boxComentario, panelCuadre);
+        root.getChildren().addAll(headerForm, new Separator(), btnPlantillas, barAcciones, tblDetalle, boxComentario, panelCuadre);
         actualizarCuadre();
         
         ScrollPane sp = new ScrollPane(root);
@@ -578,6 +597,49 @@ public class LibroDiarioView extends VBox {
         actualizarCuadre();
     }
 
+    private void guardarPlantilla() {
+        if (lineasAsiento == null || lineasAsiento.isEmpty()) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Sin renglones", "Agregue primero las cuentas que desea incluir en la plantilla.");
+            return;
+        }
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Guardar asiento precargado");
+        dialog.setHeaderText("Nombre para esta plantilla");
+        dialog.setContentText("Nombre:");
+        dialog.showAndWait().map(String::trim).filter(n -> !n.isBlank()).ifPresent(nombre -> {
+            try {
+                if (asientoPredefinidoDAO.guardar(nombre, txtComentarioAsiento.getText().trim(), List.copyOf(lineasAsiento)))
+                    mostrarAlerta(Alert.AlertType.INFORMATION, "Plantilla guardada", "Se guardó la plantilla «" + nombre + "».");
+            } catch (Exception ex) { mostrarAlerta(Alert.AlertType.ERROR, "Error", ex.getMessage()); }
+        });
+    }
+
+    private String elegirPlantilla(String titulo) {
+        List<String> nombres = asientoPredefinidoDAO.listarNombres();
+        if (nombres.isEmpty()) { mostrarAlerta(Alert.AlertType.INFORMATION, "Sin plantillas", "Todavía no hay asientos precargados."); return null; }
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(nombres.get(0), nombres);
+        dialog.setTitle(titulo); dialog.setHeaderText(null); dialog.setContentText("Plantilla:");
+        return dialog.showAndWait().orElse(null);
+    }
+
+    private void cargarPlantilla() {
+        String nombre = elegirPlantilla("Cargar asiento precargado");
+        if (nombre == null) return;
+        List<DetalleAsiento> detalles = asientoPredefinidoDAO.cargarDetalles(nombre);
+        if (detalles.isEmpty()) { mostrarAlerta(Alert.AlertType.WARNING, "Plantilla vacía", "La plantilla no tiene renglones válidos."); return; }
+        lineasAsiento.setAll(detalles);
+        for (DetalleAsiento d : lineasAsiento) { d.setDebe(0); d.setHaber(0); d.setConceptoLinea(""); }
+        txtComentarioAsiento.setText(asientoPredefinidoDAO.cargarConcepto(nombre));
+        actualizarCuadre(); tblDetalle.refresh();
+    }
+
+    private void eliminarPlantilla() {
+        String nombre = elegirPlantilla("Eliminar asiento precargado");
+        if (nombre == null) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "¿Eliminar la plantilla «" + nombre + "»?", ButtonType.YES, ButtonType.NO);
+        confirm.showAndWait().filter(r -> r == ButtonType.YES).ifPresent(r -> asientoPredefinidoDAO.eliminar(nombre));
+    }
+
     private void actualizarNumeroAsiento() {
         txtNumero.setText(String.valueOf(libroDiarioDAO.obtenerSiguienteNumeroAsiento()));
     }
@@ -637,6 +699,42 @@ public class LibroDiarioView extends VBox {
         } catch (NumberFormatException e) {
             return 0.0;
         }
+    }
+
+    private void actualizarMontoDesdeTabla(DetalleAsiento fila, double montoIngresado, boolean alDebe) {
+        if (fila == null) return;
+        fila.setDebe(alDebe ? montoIngresado : 0);
+        fila.setHaber(alDebe ? 0 : montoIngresado);
+        String codigo = fila.getCuentaCodigo() == null ? "" : fila.getCuentaCodigo();
+        boolean compraOGasto = alDebe && (codigo.startsWith("5.4") || codigo.startsWith("1.5")
+                || codigo.startsWith("1.6") || codigo.startsWith("1.7") || codigo.startsWith("6.1"));
+        boolean venta = !alDebe && "4.1".equals(codigo);
+        if ((compraOGasto || venta) && montoIngresado > 0) {
+            double tasa = configuracionDAO.obtenerTasaIva();
+            boolean incluido = com.mycompany.programa_contable.model.ConfiguracionDAO.IVA_INCLUIDO
+                    .equals(configuracionDAO.obtenerModalidadIva());
+            double neto = incluido ? redondear(montoIngresado / (1.0 + tasa)) : montoIngresado;
+            double iva = incluido ? redondear(montoIngresado - neto) : redondear(montoIngresado * tasa);
+            fila.setDebe(alDebe ? neto : 0); fila.setHaber(alDebe ? 0 : neto);
+
+            String codigoIva = venta ? "2.3" : "1.4";
+            int indice = lineasAsiento.indexOf(fila);
+            DetalleAsiento filaIva = null;
+            for (int i = indice + 1; i < lineasAsiento.size(); i++) {
+                DetalleAsiento candidata = lineasAsiento.get(i);
+                if (codigoIva.equals(candidata.getCuentaCodigo())) { filaIva = candidata; break; }
+            }
+            if (filaIva != null) {
+                filaIva.setDebe(alDebe ? iva : 0); filaIva.setHaber(alDebe ? 0 : iva);
+            }
+            for (DetalleAsiento parcial : lineasAsiento) {
+                if (parcial.getRenglon() > fila.getRenglon() && parcial.getCuentaCodigo() != null
+                        && parcial.getCuentaCodigo().startsWith(codigo + ".")) {
+                    parcial.setConceptoLinea(MONEDA.format(neto)); break;
+                }
+            }
+        }
+        actualizarCuadre(); tblDetalle.refresh();
     }
 
     private double redondear(double val) {

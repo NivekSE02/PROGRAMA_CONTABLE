@@ -1,6 +1,7 @@
 package com.mycompany.programa_contable.ui.views;
 
 import com.mycompany.programa_contable.db.DatabaseManager;
+import javafx.animation.FadeTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -8,11 +9,14 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.util.Duration;
+import javafx.stage.Stage;
+import javafx.stage.Screen;
 
 public class MainLayoutView extends BorderPane {
-
-    private final Runnable onLogout;
 
     private StackPane contentPane;
     private DashboardView dashboardView;
@@ -27,8 +31,7 @@ public class MainLayoutView extends BorderPane {
 
     private Button btnActive;
 
-    public MainLayoutView(Runnable onLogout) {
-        this.onLogout = onLogout;
+    public MainLayoutView() {
         setupUI();
     }
 
@@ -53,11 +56,12 @@ public class MainLayoutView extends BorderPane {
         topbar.setAlignment(Pos.CENTER_LEFT);
         topbar.setPadding(new Insets(16, 36, 10, 36));
 
-        Label lblBrand = new Label("FinancePro");
-        lblBrand.getStyleClass().add("brand-title");
-
-        Label lblTopTitle = new Label("Sistema Contable Automatizado");
-        lblTopTitle.getStyleClass().add("topbar-title");
+        ImageView logo = new ImageView(new Image(
+            getClass().getResourceAsStream("/logo-grande.png")
+        ));
+        logo.setPreserveRatio(true);
+        logo.setSmooth(true);
+        logo.setFitHeight(64);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -83,14 +87,59 @@ public class MainLayoutView extends BorderPane {
             });
         });
 
-        Button btnSalir = new Button("Salir");
-        btnSalir.getStyleClass().add("btn-logout");
-        btnSalir.setOnAction(e -> { if (onLogout != null) onLogout.run(); });
+        Button btnMinimizar = new Button("—");
+        Button btnMaximizar = new Button("□");
+        Button btnCerrar = new Button("×");
+        btnMinimizar.getStyleClass().add("window-control");
+        btnMaximizar.getStyleClass().add("window-control");
+        btnCerrar.getStyleClass().addAll("window-control", "window-close");
+        btnMinimizar.setOnAction(e -> obtenerStage().ifPresent(s -> s.setIconified(true)));
+        final boolean[] ventanaExpandida = {false};
+        final double[] tamanoOriginal = new double[4];
+        btnMaximizar.setOnAction(e -> obtenerStage().ifPresent(s -> {
+            if (!ventanaExpandida[0]) {
+                tamanoOriginal[0] = s.getX();
+                tamanoOriginal[1] = s.getY();
+                tamanoOriginal[2] = s.getWidth();
+                tamanoOriginal[3] = s.getHeight();
+                javafx.geometry.Rectangle2D area = Screen.getScreensForRectangle(
+                    s.getX(), s.getY(), s.getWidth(), s.getHeight()
+                ).stream().findFirst().orElse(Screen.getPrimary()).getVisualBounds();
+                s.setX(area.getMinX());
+                s.setY(area.getMinY());
+                s.setWidth(area.getWidth());
+                s.setHeight(area.getHeight());
+                ventanaExpandida[0] = true;
+            } else {
+                s.setX(tamanoOriginal[0]);
+                s.setY(tamanoOriginal[1]);
+                s.setWidth(tamanoOriginal[2]);
+                s.setHeight(tamanoOriginal[3]);
+                ventanaExpandida[0] = false;
+            }
+        }));
+        btnCerrar.setOnAction(e -> obtenerStage().ifPresent(Stage::close));
+        HBox controlesVentana = new HBox(2, btnMinimizar, btnMaximizar, btnCerrar);
+        controlesVentana.setAlignment(Pos.CENTER);
 
-        VBox brandBox = new VBox(2);
-        brandBox.getChildren().addAll(lblBrand, lblTopTitle);
-
-        topbar.getChildren().addAll(brandBox, spacer, btnResetDemo, btnSalir);
+        topbar.getChildren().addAll(logo, spacer, btnResetDemo, controlesVentana);
+        final double[] posicionVentana = new double[2];
+        topbar.setOnMousePressed(e -> {
+            if (e.getTarget() instanceof Button) return;
+            obtenerStage().ifPresent(s -> {
+                posicionVentana[0] = e.getScreenX() - s.getX();
+                posicionVentana[1] = e.getScreenY() - s.getY();
+            });
+        });
+        topbar.setOnMouseDragged(e -> {
+            if (e.getTarget() instanceof Button) return;
+            obtenerStage().ifPresent(s -> {
+            if (!ventanaExpandida[0]) {
+                s.setX(e.getScreenX() - posicionVentana[0]);
+                s.setY(e.getScreenY() - posicionVentana[1]);
+            }
+            });
+        });
 
 
         // ── RIBBON — Barra de navegación ───────────────────────────────────────
@@ -165,6 +214,13 @@ public class MainLayoutView extends BorderPane {
         btnNavDashboard.fire();
     }
 
+    private java.util.Optional<Stage> obtenerStage() {
+        if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
+            return java.util.Optional.of(stage);
+        }
+        return java.util.Optional.empty();
+    }
+
     private Button crearBotonNav(String texto, Runnable accion) {
         Button btn = new Button(texto);
         btn.getStyleClass().add("nav-button");
@@ -181,6 +237,11 @@ public class MainLayoutView extends BorderPane {
 
     private void mostrarVista(Node view) {
         contentPane.getChildren().setAll(view);
+        view.setOpacity(0);
+        FadeTransition entrada = new FadeTransition(Duration.millis(180), view);
+        entrada.setFromValue(0);
+        entrada.setToValue(1);
+        entrada.play();
     }
 
     public void actualizarTodasLasVistas() {

@@ -1,7 +1,7 @@
 
 ## 📌 Descripción del Proyecto
 
-El **Sistema Contable Automatizado** es una solución integral desarrollada en **Java 21 LTS** con interfaz moderna en **JavaFX**, diseñada para automatizar de extremo a extremo el ciclo contable empresarial, dando estricto cumplimiento a los requerimientos normativos y académicos de la Universidad Católica de El Salvador:
+**ContaNoPortable** es un sistema contable desarrollado en **Java 21 LTS** con interfaz moderna en **JavaFX**, diseñado para automatizar de extremo a extremo el ciclo contable empresarial, dando cumplimiento a los requerimientos normativos y académicos de la Universidad Católica de El Salvador:
 
 1. **Libro Diario (Registro de Asientos con Validación Obligatoria de Partida Doble)**:
    - Registro de transacciones con Fecha, N° correlativo, Cuenta contable, Concepto/Glosa, Debe y Haber.

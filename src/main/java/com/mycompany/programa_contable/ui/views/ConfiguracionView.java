@@ -2,9 +2,12 @@ package com.mycompany.programa_contable.ui.views;
 
 import com.mycompany.programa_contable.db.DatabaseManager;
 import com.mycompany.programa_contable.model.ConfiguracionDAO;
+import com.mycompany.programa_contable.service.BackupService;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.stage.FileChooser;
+import java.io.File;
 import java.sql.*;
 
 public class ConfiguracionView extends ScrollPane {
@@ -159,6 +162,62 @@ public class ConfiguracionView extends ScrollPane {
         lblCardTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
 
         cardForm.getChildren().addAll(lblCardTitle, new Separator(), rowNombre, rowCosto, rowPrecio, rowIva, rowTasaIva, new Separator(), btnGuardar);
-        mainContainer.getChildren().addAll(titleBox, cardForm);
+
+        VBox cardBackup = new VBox(14);
+        cardBackup.getStyleClass().add("card");
+        cardBackup.setMaxWidth(640);
+        cardBackup.setPadding(new Insets(24));
+        Label lblBackupTitle = new Label("Respaldo de datos");
+        lblBackupTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblBackupInfo = new Label("Motor activo: " + DatabaseManager.getInstance().getMotorActivo().getEtiqueta()
+                + ". El respaldo incluye registros contables, catálogo, configuración y plantillas.");
+        lblBackupInfo.setWrapText(true);
+        lblBackupInfo.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        HBox backupActions = new HBox(10);
+        Button btnExportarBackup = new Button("Exportar backup");
+        btnExportarBackup.getStyleClass().add("btn-primary");
+        Button btnImportarBackup = new Button("Subir backup");
+        btnImportarBackup.getStyleClass().add("btn-secondary");
+        btnExportarBackup.setOnAction(e -> exportarBackup());
+        btnImportarBackup.setOnAction(e -> importarBackup());
+        backupActions.getChildren().addAll(btnExportarBackup, btnImportarBackup);
+        cardBackup.getChildren().addAll(lblBackupTitle, new Separator(), lblBackupInfo, backupActions);
+        mainContainer.getChildren().addAll(titleBox, cardForm, cardBackup);
+    }
+
+    private void exportarBackup() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Exportar respaldo contable");
+        chooser.setInitialFileName("respaldo_contable_" + java.time.LocalDate.now() + ".cbackup");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Respaldo contable (*.cbackup)", "*.cbackup"));
+        File destino = chooser.showSaveDialog(getScene() == null ? null : getScene().getWindow());
+        if (destino == null) return;
+        try {
+            new BackupService().exportar(destino.toPath());
+            new Alert(Alert.AlertType.INFORMATION, "Respaldo exportado correctamente a:\n" + destino.getAbsolutePath(), ButtonType.OK).showAndWait();
+        } catch (Exception ex) {
+            new Alert(Alert.AlertType.ERROR, "No se pudo exportar el respaldo:\n" + ex.getMessage(), ButtonType.OK).showAndWait();
+        }
+    }
+
+    private void importarBackup() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Seleccionar respaldo contable");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Respaldo contable (*.cbackup)", "*.cbackup"));
+        File origen = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+        if (origen == null) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Restaurar el respaldo reemplazará los datos actuales de la base activa (" + DatabaseManager.getInstance().getMotorActivo().getEtiqueta() + "). ¿Desea continuar?",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setTitle("Confirmar restauración");
+        confirm.setHeaderText(null);
+        if (confirm.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+        try {
+            new BackupService().importar(origen.toPath());
+            cargarUI();
+            new Alert(Alert.AlertType.INFORMATION, "Respaldo restaurado correctamente.", ButtonType.OK).showAndWait();
+        } catch (Exception ex) {
+            new Alert(Alert.AlertType.ERROR, "No se pudo restaurar el respaldo:\n" + ex.getMessage(), ButtonType.OK).showAndWait();
+        }
     }
 }
