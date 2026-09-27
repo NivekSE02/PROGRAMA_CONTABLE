@@ -14,6 +14,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
 import java.text.DecimalFormat;
+import java.time.LocalDate;
 import java.util.List;
 
 public class LibroMayorView extends VBox {
@@ -26,11 +27,45 @@ public class LibroMayorView extends VBox {
     private ObservableList<MayorCuenta> listaCuentas;
     private FlowPane flowCuentasT;
     private Label lblDetalleCuenta;
+    private DatePicker dpDesde;
+    private DatePicker dpHasta;
+    private Label lblPeriodo;
 
     public LibroMayorView() {
         setPadding(new Insets(24, 32, 32, 32));
         setSpacing(0);
         setStyle("-fx-background-color: #f8fafc;");
+
+        dpDesde = new DatePicker(LocalDate.now().minusMonths(1));
+        dpDesde.setPrefWidth(150);
+        dpHasta = new DatePicker(LocalDate.now());
+        dpHasta.setPrefWidth(150);
+
+        HBox filtrosFecha = new HBox(10);
+        filtrosFecha.setAlignment(Pos.CENTER_LEFT);
+        filtrosFecha.setPadding(new Insets(0, 0, 14, 0));
+        Button btnAplicarFiltro = new Button("Filtrar fechas");
+        btnAplicarFiltro.getStyleClass().add("btn-primary");
+        btnAplicarFiltro.setOnAction(e -> recargarMayorizacion());
+        Button btnUltimoMes = new Button("Último mes");
+        btnUltimoMes.getStyleClass().add("btn-secondary");
+        btnUltimoMes.setOnAction(e -> {
+            dpDesde.setValue(LocalDate.now().minusMonths(1));
+            dpHasta.setValue(LocalDate.now());
+            recargarMayorizacion();
+        });
+        Button btnTodo = new Button("Todo el historial");
+        btnTodo.getStyleClass().add("btn-secondary");
+        btnTodo.setOnAction(e -> {
+            dpDesde.setValue(null);
+            dpHasta.setValue(null);
+            recargarMayorizacion();
+        });
+        lblPeriodo = new Label();
+        lblPeriodo.setStyle("-fx-text-fill: #64748b;");
+        HBox.setHgrow(lblPeriodo, Priority.ALWAYS);
+        filtrosFecha.getChildren().addAll(new Label("Desde:"), dpDesde,
+                new Label("Hasta:"), dpHasta, btnAplicarFiltro, btnUltimoMes, btnTodo, lblPeriodo);
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -42,7 +77,7 @@ public class LibroMayorView extends VBox {
         tabPane.getTabs().addAll(tabConsolidado, tabCuentasT);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
 
-        getChildren().add(tabPane);
+        getChildren().addAll(filtrosFecha, tabPane);
         recargarMayorizacion();
     }
 
@@ -58,7 +93,7 @@ public class LibroMayorView extends VBox {
         VBox titleBlock = new VBox(2);
         Label lblTitle = new Label("Consolidación de Saldos");
         lblTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
-        Label lblTitleSub = new Label("Débitos, créditos y saldos calculados automáticamente en tiempo real");
+        Label lblTitleSub = new Label("Débitos, créditos y saldos del período seleccionado");
         lblTitleSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
         titleBlock.getChildren().addAll(lblTitle, lblTitleSub);
         HBox.setHgrow(titleBlock, Priority.ALWAYS);
@@ -177,18 +212,31 @@ public class LibroMayorView extends VBox {
     }
 
     public void recargarMayorizacion() {
-        List<MayorCuenta> mayores = mayorizacionService.obtenerMayorizacionCompleta();
+        LocalDate fechaDesde = dpDesde.getValue();
+        LocalDate fechaHasta = dpHasta.getValue();
+        if (fechaDesde != null && fechaHasta != null && fechaDesde.isAfter(fechaHasta)) {
+            new Alert(Alert.AlertType.WARNING, "La fecha inicial no puede ser posterior a la fecha final.").showAndWait();
+            return;
+        }
+
+        String desde = fechaDesde == null ? null : fechaDesde.toString();
+        String hasta = fechaHasta == null ? null : fechaHasta.toString();
+        List<MayorCuenta> mayores = mayorizacionService.obtenerMayorizacion(false, desde, hasta);
         listaCuentas.setAll(mayores);
         if (!mayores.isEmpty()) {
             tblConsolidado.getSelectionModel().select(0);
+        } else {
+            tblConsolidado.getSelectionModel().clearSelection();
         }
 
         // Generar las Cuentas T visuales en el FlowPane (usando el calculo consolidado exclusivo para T)
         flowCuentasT.getChildren().clear();
-        List<MayorCuenta> cuentasT = mayorizacionService.obtenerMayorizacionParaCuentasT();
+        List<MayorCuenta> cuentasT = mayorizacionService.obtenerMayorizacionParaCuentasT(desde, hasta);
         for (MayorCuenta m : cuentasT) {
             flowCuentasT.getChildren().add(crearWidgetCuentaT(m));
         }
+        lblPeriodo.setText((desde == null ? "Inicio" : desde) + " — "
+                + (hasta == null ? "Hoy" : hasta) + " | " + mayores.size() + " cuentas con movimientos");
     }
 
     /**
@@ -208,6 +256,7 @@ public class LibroMayorView extends VBox {
         // Columnas DEBE y HABER con línea central divisoria
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(8));
+        grid.setMinWidth(388);
 
         Label lblDebe = new Label("DEBE (Débitos)");
         lblDebe.getStyleClass().add("t-column-header");
@@ -253,11 +302,11 @@ public class LibroMayorView extends VBox {
 
         // Totales de movimientos
         Label lblTotDebe = new Label(MONEDA.format(m.getTotalDebe()));
-        lblTotDebe.setStyle("-fx-font-weight: bold; -fx-font-family: 'Consolas', monospace; -fx-alignment: CENTER-RIGHT; -fx-padding: 4px;");
+        lblTotDebe.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-font-family: 'Consolas', monospace; -fx-alignment: CENTER-RIGHT; -fx-padding: 6px 4px;");
         lblTotDebe.setMaxWidth(Double.MAX_VALUE);
 
         Label lblTotHaber = new Label(MONEDA.format(m.getTotalHaber()));
-        lblTotHaber.setStyle("-fx-font-weight: bold; -fx-font-family: 'Consolas', monospace; -fx-alignment: CENTER-RIGHT; -fx-padding: 4px;");
+        lblTotHaber.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-font-family: 'Consolas', monospace; -fx-alignment: CENTER-RIGHT; -fx-padding: 6px 4px;");
         lblTotHaber.setMaxWidth(Double.MAX_VALUE);
 
         grid.add(lblTotDebe, 0, maxRow + 1);
@@ -271,18 +320,27 @@ public class LibroMayorView extends VBox {
 
         if (m.getSaldoDeudor() > 0) {
             Label lblSaldo = new Label("SD: " + MONEDA.format(m.getSaldoDeudor()));
-            lblSaldo.setStyle("-fx-font-weight: bold; -fx-text-fill: #15803d; -fx-font-family: 'Consolas', monospace; -fx-padding: 4px;");
+            lblSaldo.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #15803d; -fx-font-family: 'Consolas', monospace; -fx-padding: 6px 4px;");
             grid.add(lblSaldo, 0, maxRow + 3);
         } else if (m.getSaldoAcreedor() > 0) {
             Label lblSaldo = new Label("SA: " + MONEDA.format(m.getSaldoAcreedor()));
-            lblSaldo.setStyle("-fx-font-weight: bold; -fx-text-fill: #1e40af; -fx-font-family: 'Consolas', monospace; -fx-padding: 4px; -fx-alignment: CENTER-RIGHT;");
+            lblSaldo.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #1e40af; -fx-font-family: 'Consolas', monospace; -fx-padding: 6px 4px; -fx-alignment: CENTER-RIGHT;");
             lblSaldo.setMaxWidth(Double.MAX_VALUE);
             grid.add(lblSaldo, 2, maxRow + 3);
         }
 
-        ColumnConstraints col1 = new ColumnConstraints(140);
-        ColumnConstraints colSep = new ColumnConstraints(10);
-        ColumnConstraints col2 = new ColumnConstraints(140);
+        ColumnConstraints col1 = new ColumnConstraints(180);
+        col1.setMinWidth(180);
+        col1.setPrefWidth(180);
+        col1.setMaxWidth(180);
+        ColumnConstraints colSep = new ColumnConstraints(12);
+        colSep.setMinWidth(12);
+        colSep.setPrefWidth(12);
+        colSep.setMaxWidth(12);
+        ColumnConstraints col2 = new ColumnConstraints(180);
+        col2.setMinWidth(180);
+        col2.setPrefWidth(180);
+        col2.setMaxWidth(180);
         grid.getColumnConstraints().addAll(col1, colSep, col2);
 
         card.getChildren().addAll(header, grid);

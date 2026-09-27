@@ -9,6 +9,7 @@ import java.util.Map;
 public class ConfiguracionDAO {
     private static final String CLAVE_TASA_IVA = "tasa_iva";
     private static final String CLAVE_MODALIDAD_IVA = "modalidad_iva";
+    private static final String CLAVE_NOMBRE_EMPRESA = "nombre_empresa";
     private static final double TASA_IVA_POR_DEFECTO = 0.13;
     public static final String IVA_INCLUIDO = "INCLUIDO";
     public static final String IVA_MAS_IVA = "MAS_IVA";
@@ -98,6 +99,16 @@ public class ConfiguracionDAO {
     public String obtenerModalidadIva() {
         String modalidad = obtenerConfiguracion().get(CLAVE_MODALIDAD_IVA);
         return IVA_MAS_IVA.equals(modalidad) ? IVA_MAS_IVA : IVA_INCLUIDO;
+    }
+
+    public String obtenerNombreEmpresa() {
+        String nombre = obtenerConfiguracion().get(CLAVE_NOMBRE_EMPRESA);
+        return nombre == null || nombre.isBlank() ? "Empresa" : nombre.trim();
+    }
+
+    public void guardarNombreEmpresa(String nombre) throws SQLException {
+        if (nombre == null || nombre.isBlank()) throw new IllegalArgumentException("El nombre de la empresa no puede estar vacío.");
+        guardarValor(CLAVE_NOMBRE_EMPRESA, nombre.trim());
     }
 
     public void guardarModalidadIva(String modalidad) throws SQLException {

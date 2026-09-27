@@ -1,11 +1,11 @@
 package com.mycompany.programa_contable.db;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -31,8 +31,7 @@ public class DatabaseManager {
     private String mssqlUser     = "conta_user";
     private String mssqlPassword = "Conta2026*!";
 
-    // Cambiar a SQL_SERVER para usar la base de datos corporativa en desarrollo
-    private MotorBD motorActivo = MotorBD.SQL_SERVER;
+    private MotorBD motorActivo = MotorBD.SQLITE;
 
     private DatabaseManager() {}
 
@@ -51,11 +50,35 @@ public class DatabaseManager {
     }
 
     private Connection crearConexionSQLite() throws SQLException {
-        Connection conn = DriverManager.getConnection("jdbc:sqlite:contabilidad.db");
+        Path databasePath = obtenerRutaSQLite();
+        try {
+            Files.createDirectories(databasePath.getParent());
+            migrarBaseLegadaSiExiste(databasePath);
+        } catch (Exception e) {
+            throw new SQLException("No se pudo preparar el almacenamiento local: " + databasePath, e);
+        }
+        Connection conn = DriverManager.getConnection("jdbc:sqlite:" + databasePath);
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("PRAGMA foreign_keys = ON");
         }
         return conn;
+    }
+
+    private Path obtenerRutaSQLite() {
+        String localAppData = System.getenv("LOCALAPPDATA");
+        Path dataDirectory = localAppData != null && !localAppData.isBlank()
+                ? Path.of(localAppData, "ContaNoPortable")
+                : Path.of(System.getProperty("user.home"), ".contanoportable");
+        return dataDirectory.resolve("contabilidad.db").toAbsolutePath();
+    }
+
+    private void migrarBaseLegadaSiExiste(Path databasePath) throws Exception {
+        if (Files.exists(databasePath)) return;
+        Path legacyDatabase = Path.of("contabilidad.db").toAbsolutePath();
+        if (Files.isRegularFile(legacyDatabase) && !legacyDatabase.equals(databasePath)) {
+            Files.copy(legacyDatabase, databasePath);
+            System.out.println("[DatabaseManager] Base existente migrada a: " + databasePath);
+        }
     }
 
     private Connection crearConexionSQLServer(String host, int port, String db, String user, String pass) throws SQLException {
@@ -89,7 +112,7 @@ public class DatabaseManager {
         try (Connection conn = getConnection()) {
             initDatabase(conn);
         } catch (SQLException e) {
-            System.err.println("[DatabaseManager] Error al inicializar base de datos: " + e.getMessage());
+            throw new IllegalStateException("No se pudo abrir o preparar la base de datos local.", e);
         }
     }
 
@@ -97,20 +120,20 @@ public class DatabaseManager {
         try {
             if (!tablesExist(conn)) {
                 System.out.println("[DatabaseManager] Creando tablas en " + motorActivo.getEtiqueta() + "...");
-                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "schema_sqlserver.sql" : "schema.sql");
-                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "data_sqlserver.sql" : "data.sql");
+                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/schema_sqlserver.sql" : "database/schema.sql");
+                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/data_sqlserver.sql" : "database/data.sql");
                 System.out.println("[DatabaseManager] Base de datos inicializada.");
             }
         } catch (Exception e) {
-            System.err.println("[DatabaseManager] Error al inicializar tablas: " + e.getMessage());
+            throw new IllegalStateException("No se pudo inicializar el esquema de " + motorActivo.getEtiqueta() + ".", e);
         }
     }
 
     public synchronized void resetDatabase() {
         try (Connection conn = getConnection()) {
             System.out.println("[DatabaseManager] Restableciendo base de datos...");
-            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "schema_sqlserver.sql" : "schema.sql");
-            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "data_sqlserver.sql" : "data.sql");
+            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/schema_sqlserver.sql" : "database/schema.sql");
+            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/data_sqlserver.sql" : "database/data.sql");
             System.out.println("[DatabaseManager] Base de datos restablecida.");
         } catch (Exception e) {
             System.err.println("[DatabaseManager] Error al restablecer base de datos: " + e.getMessage());
@@ -121,10 +144,10 @@ public class DatabaseManager {
     private boolean tablesExist(Connection conn) {
         try (Statement stmt = conn.createStatement()) {
             String sql = motorActivo == MotorBD.SQL_SERVER
-                ? "SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='cuentas'"
-                : "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='cuentas'";
+                ? "SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('cuentas','productos','asientos','detalle_asiento','kardex','configuracion')"
+                : "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('cuentas','productos','asientos','detalle_asiento','kardex','configuracion')";
             try (ResultSet rs = stmt.executeQuery(sql)) {
-                if (rs.next()) return rs.getInt(1) > 0;
+                if (rs.next()) return rs.getInt(1) == 6;
             }
         } catch (SQLException e) {
             return false;
@@ -132,50 +155,29 @@ public class DatabaseManager {
         return false;
     }
 
-    private void ejecutarScript(Connection conn, String scriptName) {
-        try {
-            BufferedReader reader = null;
-            File file = new File(scriptName);
-            if (file.exists()) {
-                reader = new BufferedReader(new FileReader(file, StandardCharsets.UTF_8));
-            } else {
-                InputStream is = getClass().getClassLoader().getResourceAsStream(scriptName);
-                if (is != null) {
-                    reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-                }
+    private void ejecutarScript(Connection conn, String scriptName) throws Exception {
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(scriptName)) {
+            if (input == null) {
+                throw new IllegalStateException("No se encontró el recurso requerido: " + scriptName);
             }
-
-            if (reader == null) {
-                System.err.println("[DatabaseManager] No se encontró el script: " + scriptName);
-                return;
-            }
-
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String trimmed = line.trim();
-                if (trimmed.startsWith("--") || trimmed.isEmpty()) continue;
-                sb.append(line).append("\n");
-            }
-            reader.close();
-
-            try (Statement stmt = conn.createStatement()) {
-                for (String sql : sb.toString().split(";")) {
-                    String cleanSql = sql.trim();
-                    if (!cleanSql.isEmpty()) {
-                        try {
-                            stmt.execute(cleanSql);
-                        } catch (SQLException ex) {
-                            // Continuar ante errores no críticos (DROP en BD vacía, etc.)
-                        }
+            StringBuilder script = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String trimmed = line.trim();
+                    if (!trimmed.startsWith("--") && !trimmed.isEmpty()) {
+                        script.append(line).append('\n');
                     }
                 }
             }
-        } catch (Exception e) {
-            System.err.println("[DatabaseManager] Error ejecutando script " + scriptName + ": " + e.getMessage());
+            try (Statement stmt = conn.createStatement()) {
+                for (String sql : script.toString().split(";")) {
+                    String cleanSql = sql.trim();
+                    if (!cleanSql.isEmpty()) stmt.execute(cleanSql);
+                }
+            }
         }
     }
-
     public MotorBD getMotorActivo()  { return motorActivo; }
     public void activarSQLite()      { this.motorActivo = MotorBD.SQLITE; }
     public void activarSQLServer()   { this.motorActivo = MotorBD.SQL_SERVER; }

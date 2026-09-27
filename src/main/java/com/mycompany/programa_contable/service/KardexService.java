@@ -25,8 +25,8 @@ public class KardexService {
                    + "ELSE 0 END), 0) AS total_salidas "
                    + "FROM kardex k LEFT JOIN ("
                    + " SELECT asiento_id, "
-                   + " MAX(CASE WHEN cuenta_codigo = '4.1' AND haber > 0 THEN 1 ELSE 0 END) AS es_venta, "
-                   + " MAX(CASE WHEN cuenta_codigo = '4.2' AND debe > 0 THEN 1 ELSE 0 END) AS es_devolucion_venta "
+                   + " MAX(CASE WHEN (cuenta_codigo = '4.1' OR cuenta_codigo LIKE '4.1.%') AND haber > 0 THEN 1 ELSE 0 END) AS es_venta, "
+                   + " MAX(CASE WHEN (cuenta_codigo = '4.2' OR cuenta_codigo LIKE '4.2.%') AND debe > 0 THEN 1 ELSE 0 END) AS es_devolucion_venta "
                    + " FROM detalle_asiento GROUP BY asiento_id"
                    + ") clasificacion ON clasificacion.asiento_id = k.asiento_id";
         try (Connection conn = dbManager.getConnection();
@@ -41,21 +41,10 @@ public class KardexService {
         return costoTotal;
     }
 
-    /** Obtiene el saldo valorizado final registrado en el Kárdex. */
+    /** Obtiene el saldo final reconstruido con los importes originales del diario. */
     public double obtenerInventarioFinal(int productoId) {
-        String sql = dbManager.getMotorActivo() == DatabaseManager.MotorBD.SQLITE
-                ? "SELECT saldo_valor FROM kardex WHERE producto_id = ? ORDER BY fecha DESC, id DESC LIMIT 1"
-                : "SELECT TOP 1 saldo_valor FROM kardex WHERE producto_id = ? ORDER BY fecha DESC, id DESC";
-        try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, productoId);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getDouble("saldo_valor") : 0.0;
-            }
-        } catch (Exception e) {
-            System.err.println("[KardexService] Error obteniendo inventario final: " + e.getMessage());
-            return 0.0;
-        }
+        List<KardexFilaDTO> filas = generarReporteKardex(productoId);
+        return filas.isEmpty() ? 0.0 : filas.get(filas.size() - 1).getSaldoMonetario();
     }
 
     public void registrarMovimientoAuto(int productoId, String fecha, String tipoMovimiento, int cantidad, double costoUnitario, int asientoId) {
@@ -80,7 +69,14 @@ public class KardexService {
         int existenciasActuales = 0;
         double saldoActual = 0.0;
 
-        String sql = "SELECT k.fecha, k.tipo_movimiento, k.cantidad, k.costo_unitario, k.costo_total, a.concepto "
+        String sql = "SELECT k.fecha, k.tipo_movimiento, k.cantidad, k.costo_unitario, k.costo_total, "
+                   + "k.asiento_id, a.concepto, COALESCE((SELECT SUM(CASE "
+                   + "WHEN d.cuenta_codigo = '5.1' OR d.cuenta_codigo LIKE '5.1.%' "
+                   + "THEN d.haber - d.debe ELSE d.debe - d.haber END) "
+                   + "FROM detalle_asiento d WHERE d.asiento_id = k.asiento_id AND ("
+                   + "d.cuenta_codigo = '1.2' OR d.cuenta_codigo LIKE '1.2.%' "
+                   + "OR d.cuenta_codigo = '5.4' OR d.cuenta_codigo LIKE '5.4.%' "
+                   + "OR d.cuenta_codigo = '5.1' OR d.cuenta_codigo LIKE '5.1.%')), 0) AS importe_contable "
                    + "FROM kardex k INNER JOIN asientos a ON k.asiento_id = a.id "
                    + "WHERE k.producto_id = ? ORDER BY k.fecha ASC, k.id ASC";
 
@@ -96,6 +92,15 @@ public class KardexService {
                     double costoU   = rs.getDouble("costo_unitario");
                     double costoT   = rs.getDouble("costo_total");
 
+                    // En aperturas, compras y devoluciones a proveedor, el asiento
+                    // es la fuente del importe. Versiones anteriores guardaban
+                    // cantidad * costo unitario y acumulaban diferencias de redondeo.
+                    double importe = rs.getDouble("importe_contable");
+                    if (importe > 0) {
+                        costoT = redondear(importe);
+                        costoU = costoT / cantidad;
+                    }
+
                     int entrada = 0, salida = 0;
                     if (tipo.equals("ENTRADA")) {
                         entrada = cantidad;
@@ -107,7 +112,8 @@ public class KardexService {
                         saldoActual -= costoT;
                     }
 
-                    reporte.add(new KardexFilaDTO(fecha, concepto, entrada, salida, existenciasActuales, costoU, costoT, saldoActual));
+                    reporte.add(new KardexFilaDTO(fecha, concepto, entrada, salida, existenciasActuales,
+                            costoU, costoT, redondear(saldoActual)));
                 }
             }
         } catch (Exception e) {
@@ -116,7 +122,9 @@ public class KardexService {
         return reporte;
     }
 
-    public void registrarMovimientoConConexión(Connection conn, int productoId, String fecha, String tipoMovimiento, int cantidad, double costoUnitario, int asientoId) throws Exception {
+    public void registrarMovimientoConConexión(Connection conn, int productoId, String fecha,
+            String tipoMovimiento, int cantidad, double importeEntrada,
+            boolean usarCostoPromedio, int asientoId) throws Exception {
         int ultimoSaldoCantidad = 0;
         double ultimoSaldoValor = 0.0;
 
@@ -138,7 +146,23 @@ public class KardexService {
             }
         }
 
-        double costoTotalMovimiento = cantidad * costoUnitario;
+        if (cantidad <= 0) {
+            throw new IllegalArgumentException("La cantidad del movimiento debe ser mayor que cero.");
+        }
+
+        double costoUnitario;
+        double costoTotalMovimiento;
+        if (usarCostoPromedio) {
+            if (ultimoSaldoCantidad <= 0 || ultimoSaldoValor < 0) {
+                throw new IllegalArgumentException("No hay existencias valorizadas para calcular el costo promedio.");
+            }
+            costoUnitario = ultimoSaldoValor / ultimoSaldoCantidad;
+            costoTotalMovimiento = redondear(cantidad * costoUnitario);
+        } else {
+            costoTotalMovimiento = redondear(importeEntrada);
+            costoUnitario = costoTotalMovimiento / cantidad;
+        }
+
         int nuevoSaldoCantidad;
         double nuevoSaldoValor;
 
@@ -146,6 +170,9 @@ public class KardexService {
             nuevoSaldoCantidad = ultimoSaldoCantidad + cantidad;
             nuevoSaldoValor    = redondear(ultimoSaldoValor + costoTotalMovimiento);
         } else {
+            if (cantidad > ultimoSaldoCantidad) {
+                throw new IllegalArgumentException("La salida supera las existencias disponibles en el Kárdex.");
+            }
             nuevoSaldoCantidad = ultimoSaldoCantidad - cantidad;
             nuevoSaldoValor    = redondear(ultimoSaldoValor - costoTotalMovimiento);
         }

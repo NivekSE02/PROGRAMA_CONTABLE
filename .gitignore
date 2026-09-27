@@ -28,3 +28,5 @@ target/
 ### SQLite ###
 contabilidad.db*
 *.db-journal
+
+wix-cli-x64.msi

@@ -50,17 +50,7 @@ public class BalanzaComprobacionView extends VBox {
         titleBox.getChildren().addAll(lblTitulo, lblPeriodo);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        MenuButton btnExportar = new MenuButton("Exportar");
-        btnExportar.getStyleClass().add("btn-secondary");
-        btnExportar.getStyleClass().add("export-button");
-        btnExportar.setStyle("-fx-text-fill: white;");
-        MenuItem mnuCsv = new MenuItem("Exportar a CSV");
-        mnuCsv.getStyleClass().add("export-menu-item");
-        mnuCsv.setOnAction(e -> exportarCSV());
-        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
-        mnuExcel.getStyleClass().add("export-menu-item");
-        mnuExcel.setOnAction(e -> exportarExcel());
-        btnExportar.getItems().addAll(mnuCsv, mnuExcel);
+        MenuButton btnExportar = ExportMenuFactory.crear(this::exportarPDF, this::exportarExcel);
 
         Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
@@ -173,18 +163,20 @@ public class BalanzaComprobacionView extends VBox {
         }
     }
 
-    private void exportarCSV() {
+    private void exportarPDF() {
         if (balanzaActual == null || balanzaActual.getRenglones().isEmpty()) return;
         FileChooser fc = new FileChooser();
         fc.setTitle("Exportar Balanza de Comprobación");
-        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivo CSV (*.csv)", "*.csv"));
-        fc.setInitialFileName("Balanza_Comprobacion_" + LocalDate.now() + ".csv");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documento PDF (*.pdf)", "*.pdf"));
+        fc.setInitialFileName("Balanza_Comprobacion_" + LocalDate.now() + ".pdf");
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarBalanzaComprobacionCSV(balanzaActual, dest);
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "Balanza exportada correctamente a: " + dest.getAbsolutePath());
-                a.showAndWait();
+                java.util.List<String> lineas = new java.util.ArrayList<>();
+                lineas.add("Código | Cuenta | Clase | Debe | Haber | Saldo deudor | Saldo acreedor");
+                balanzaActual.getRenglones().forEach(r -> lineas.add(String.format(java.util.Locale.ROOT, "%s | %s | %s | $%.2f | $%.2f | $%.2f | $%.2f", r.getCodigo(), r.getNombre(), r.getTipo().getNombre(), r.getMovimientoDebe(), r.getMovimientoHaber(), r.getSaldoDeudor(), r.getSaldoAcreedor())));
+                dest = ExportacionService.exportarPDF(ExportacionService.obtenerNombreEmpresa(), "Balanza de Comprobación", lineas, dest);
+                ExportMenuFactory.ofrecerAbrir(dest, "PDF");
             } catch (Exception ex) {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Error: " + ex.getMessage());
                 a.showAndWait();
@@ -201,9 +193,8 @@ public class BalanzaComprobacionView extends VBox {
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarBalanzaComprobacionExcel(balanzaActual, dest);
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "Balanza exportada a Excel correctamente.");
-                a.showAndWait();
+                dest = ExportacionService.exportarBalanzaComprobacionExcel(balanzaActual, ExportacionService.obtenerNombreEmpresa(), dest);
+                ExportMenuFactory.ofrecerAbrir(dest, "Excel");
             } catch (Exception ex) {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Error al exportar a Excel: " + ex.getMessage());
                 a.showAndWait();

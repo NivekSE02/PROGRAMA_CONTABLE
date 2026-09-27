@@ -53,17 +53,7 @@ public class KardexView extends ScrollPane {
         titleBox.getChildren().addAll(lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        MenuButton btnImprimir = new MenuButton("Exportar Kárdex");
-        btnImprimir.getStyleClass().add("btn-primary");
-        btnImprimir.getStyleClass().add("export-button");
-        btnImprimir.setStyle("-fx-text-fill: white;");
-        MenuItem mnuHtml = new MenuItem("Exportar a HTML");
-        mnuHtml.getStyleClass().add("export-menu-item");
-        mnuHtml.setOnAction(e -> mostrarAlertaConstruccion());
-        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
-        mnuExcel.getStyleClass().add("export-menu-item");
-        mnuExcel.setOnAction(e -> exportarExcel());
-        btnImprimir.getItems().addAll(mnuHtml, mnuExcel);
+        MenuButton btnImprimir = ExportMenuFactory.crear(this::exportarPDF, this::exportarExcel);
 
         Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
@@ -192,6 +182,24 @@ public class KardexView extends ScrollPane {
         return tbl;
     }
 
+    private void exportarPDF() {
+        List<KardexFilaDTO> filas = kardexService.generarReporteKardex(PRODUCTO_ACTUAL_ID);
+        if (filas.isEmpty()) { new Alert(Alert.AlertType.WARNING, "No hay datos en el kárdex para exportar.").showAndWait(); return; }
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Exportar Kárdex a PDF");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documento PDF (*.pdf)", "*.pdf"));
+        fc.setInitialFileName("Kardex_Inventario_" + java.time.LocalDate.now() + ".pdf");
+        java.io.File dest = fc.showSaveDialog(getScene().getWindow());
+        if (dest == null) return;
+        try {
+            List<String> rows = new java.util.ArrayList<>();
+            rows.add("Fecha | Concepto | Entrada | Salida | Existencias | Costo unitario | Costo total | Saldo");
+            filas.forEach(f -> rows.add(f.getFecha()+" | "+f.getConcepto()+" | "+f.getEntrada()+" | "+f.getSalida()+" | "+f.getExistencias()+" | $"+MONEDA.format(f.getCostoUnitario())+" | $"+MONEDA.format(f.getCostoTotal())+" | $"+MONEDA.format(f.getSaldoMonetario())));
+            dest = com.mycompany.programa_contable.service.ExportacionService.exportarPDF(com.mycompany.programa_contable.service.ExportacionService.obtenerNombreEmpresa(), "Kárdex de Inventario", rows, dest);
+            ExportMenuFactory.ofrecerAbrir(dest, "PDF");
+        } catch (Exception ex) { new Alert(Alert.AlertType.ERROR, "Error al exportar: " + ex.getMessage()).showAndWait(); }
+    }
+
     private void mostrarAlertaConstruccion() {
         Alert a = new Alert(Alert.AlertType.INFORMATION, "El módulo de exportación a HTML para el Kárdex está en desarrollo.", ButtonType.OK);
         a.setTitle("Función en Desarrollo");
@@ -213,9 +221,8 @@ public class KardexView extends ScrollPane {
         java.io.File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                com.mycompany.programa_contable.service.ExportacionService.exportarKardexExcel(reporteKardex, "Queso Fresco (Id 1)", dest);
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "Kárdex exportado a Excel correctamente.");
-                a.showAndWait();
+                dest = com.mycompany.programa_contable.service.ExportacionService.exportarKardexExcel(reporteKardex, "Queso Fresco (Id 1)", com.mycompany.programa_contable.service.ExportacionService.obtenerNombreEmpresa(), dest);
+                ExportMenuFactory.ofrecerAbrir(dest, "Excel");
             } catch (Exception ex) {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Error al exportar a Excel: " + ex.getMessage());
                 a.showAndWait();

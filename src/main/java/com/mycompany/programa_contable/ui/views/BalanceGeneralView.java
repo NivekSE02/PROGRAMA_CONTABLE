@@ -53,17 +53,7 @@ public class BalanceGeneralView extends ScrollPane {
         titleBox.getChildren().addAll(lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        MenuButton btnImprimir = new MenuButton("Exportar Reporte");
-        btnImprimir.getStyleClass().add("btn-primary");
-        btnImprimir.getStyleClass().add("export-button");
-        btnImprimir.setStyle("-fx-text-fill: white;");
-        MenuItem mnuHtml = new MenuItem("Exportar a HTML");
-        mnuHtml.getStyleClass().add("export-menu-item");
-        mnuHtml.setOnAction(e -> exportarHTML());
-        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
-        mnuExcel.getStyleClass().add("export-menu-item");
-        mnuExcel.setOnAction(e -> exportarExcel());
-        btnImprimir.getItems().addAll(mnuHtml, mnuExcel);
+        MenuButton btnImprimir = ExportMenuFactory.crear(this::exportarPDF, this::exportarExcel);
 
         Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
@@ -223,6 +213,39 @@ public class BalanceGeneralView extends ScrollPane {
         return tbl;
     }
 
+    private void exportarPDF() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Guardar Balance General en PDF");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documento PDF (*.pdf)", "*.pdf"));
+        fc.setInitialFileName("Balance_General_" + LocalDate.now() + ".pdf");
+        File dest = fc.showSaveDialog(getScene().getWindow());
+        if (dest == null) return;
+        try {
+            java.util.List<String> rows = new java.util.ArrayList<>();
+            rows.add("ACTIVO CORRIENTE");
+            rows.add("Código | Cuenta | Saldo ($)");
+            balanceActual.getActivosCorrientes().forEach(l -> rows.add(l.getCodigo()+" | "+l.getNombre()+" | $"+MONEDA.format(l.getMonto())));
+            rows.add("Total activo corriente: $"+MONEDA.format(balanceActual.getTotalActivoCorriente()));
+            rows.add("ACTIVO NO CORRIENTE");
+            rows.add("Código | Cuenta | Saldo ($)");
+            balanceActual.getActivosNoCorrientes().forEach(l -> rows.add(l.getCodigo()+" | "+l.getNombre()+" | $"+MONEDA.format(l.getMonto())));
+            rows.add("TOTAL ACTIVO: $"+MONEDA.format(balanceActual.getTotalActivo()));
+            rows.add("PASIVOS");
+            rows.add("Código | Cuenta | Saldo ($)");
+            balanceActual.getPasivosCorrientes().forEach(l -> rows.add(l.getCodigo()+" | "+l.getNombre()+" | $"+MONEDA.format(l.getMonto())));
+            balanceActual.getPasivosNoCorrientes().forEach(l -> rows.add(l.getCodigo()+" | "+l.getNombre()+" | $"+MONEDA.format(l.getMonto())));
+            rows.add("TOTAL PASIVO: $"+MONEDA.format(balanceActual.getTotalPasivo()));
+            rows.add("PATRIMONIO");
+            rows.add("Código | Cuenta | Saldo ($)");
+            balanceActual.getCuentasCapital().forEach(l -> rows.add(l.getCodigo()+" | "+l.getNombre()+" | $"+MONEDA.format(l.getMonto())));
+            rows.add("Utilidad del ejercicio: $"+MONEDA.format(balanceActual.getUtilidadDelEjercicio()));
+            rows.add("TOTAL PATRIMONIO: $"+MONEDA.format(balanceActual.getTotalCapitalContable()));
+            rows.add("TOTAL PASIVO + PATRIMONIO: $"+MONEDA.format(balanceActual.getTotalPasivoMasCapital()));
+            dest = ExportacionService.exportarPDF(ExportacionService.obtenerNombreEmpresa(), "Balance General", rows, dest);
+            ExportMenuFactory.ofrecerAbrir(dest, "PDF");
+        } catch (Exception ex) { new Alert(Alert.AlertType.ERROR, "Error al exportar: " + ex.getMessage()).showAndWait(); }
+    }
+
     private void exportarHTML() {
         FileChooser fc = new FileChooser();
         fc.setTitle("Guardar Reporte de Balance General");
@@ -231,7 +254,7 @@ public class BalanceGeneralView extends ScrollPane {
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarBalanceGeneralHTML(balanceActual, "Empresa Práctica S.A. de C.V.", dest);
+                ExportacionService.exportarBalanceGeneralHTML(balanceActual, ExportacionService.obtenerNombreEmpresa(), dest);
                 Alert a = new Alert(Alert.AlertType.INFORMATION, "Reporte generado con éxito. ¿Desea abrirlo en su navegador para imprimir o guardar como PDF?", ButtonType.YES, ButtonType.NO);
                 a.setTitle("Exportación Formal Exitosa");
                 a.showAndWait().ifPresent(resp -> {
@@ -254,14 +277,8 @@ public class BalanceGeneralView extends ScrollPane {
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarBalanceGeneralExcel(balanceActual, "Empresa Práctica S.A. de C.V.", dest);
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "Libro de Excel generado con éxito. ¿Desea abrirlo ahora?", ButtonType.YES, ButtonType.NO);
-                a.setTitle("Exportación a Excel Exitosa");
-                a.showAndWait().ifPresent(resp -> {
-                    if (resp == ButtonType.YES && Desktop.isDesktopSupported()) {
-                        try { Desktop.getDesktop().open(dest); } catch (Exception ignored) {}
-                    }
-                });
+                File archivo = ExportacionService.exportarBalanceGeneralExcel(balanceActual, ExportacionService.obtenerNombreEmpresa(), dest);
+                ExportMenuFactory.ofrecerAbrir(archivo, "Excel");
             } catch (Exception ex) {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Error: " + ex.getMessage());
                 a.showAndWait();

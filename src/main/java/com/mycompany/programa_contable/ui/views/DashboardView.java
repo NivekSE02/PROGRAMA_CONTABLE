@@ -97,62 +97,32 @@ public class DashboardView extends ScrollPane {
             ? (bg.getTotalActivoCorriente() / bg.getTotalPasivoCorriente()) : 0.0;
         double margen = er.getTotalIngresos() > 0
             ? (er.getUtilidadNeta() / er.getTotalIngresos()) * 100.0 : 0.0;
+        double efectivo = sumarPorCodigo(bg.getActivosCorrientes(), "1.1");
+        double cuentasPorCobrar = sumarPorCodigo(bg.getActivosCorrientes(), "1.3");
+        double inventario = sumarPorCodigo(bg.getActivosCorrientes(), "1.2");
+        double cuentasPorPagar = sumarPorCodigo(bg.getPasivosCorrientes(), "2.1");
 
-        kpiGrid.add(kpiCard(
-            "ACTIVO TOTAL",
-            MONEDA.format(bg.getTotalActivo()),
-            "Corriente: " + MONEDA.format(bg.getTotalActivoCorriente()),
-            "card-accent-indigo", null, null
-        ), 0, 0);
-        kpiGrid.add(kpiCard(
-            "PASIVO TOTAL",
-            MONEDA.format(bg.getTotalPasivo()),
-            "Corriente: " + MONEDA.format(bg.getTotalPasivoCorriente()),
-            "card-accent-amber", null, null
-        ), 1, 0);
-        kpiGrid.add(kpiCard(
-            "CAPITAL CONTABLE",
-            MONEDA.format(bg.getTotalCapitalContable()),
-            "Capital social + Utilidad del ejercicio",
-            "card-accent-emerald", null, null
-        ), 2, 0);
-        kpiGrid.add(kpiCard(
-            "UTILIDAD NETA",
-            MONEDA.format(er.getUtilidadNeta()),
-            "Ingresos: " + MONEDA.format(er.getTotalIngresos()),
-            er.getUtilidadNeta() >= 0 ? "card-accent-emerald" : "card-accent-rose",
-            er.getUtilidadNeta() >= 0 ? "▲ Ganancia" : "▼ Pérdida",
-            er.getUtilidadNeta() >= 0
-        ), 3, 0);
+        kpiGrid.add(kpiCard("EFECTIVO Y EQUIVALENTES", MONEDA.format(efectivo),
+            "Caja y bancos disponibles", "card-accent-indigo", null, null), 0, 0);
+        kpiGrid.add(kpiCard("CUENTAS POR COBRAR", MONEDA.format(cuentasPorCobrar),
+            "Saldos pendientes de clientes", "card-accent-amber", null, null), 1, 0);
+        kpiGrid.add(kpiCard("INVENTARIO FINAL", MONEDA.format(inventario),
+            "Existencia valorizada según PEPS", "card-accent-indigo", null, null), 2, 0);
+        kpiGrid.add(kpiCard("CUENTAS POR PAGAR", MONEDA.format(cuentasPorPagar),
+            "Obligaciones pendientes con proveedores", "card-accent-rose", null, null), 3, 0);
 
-        kpiGrid.add(kpiCard(
-            "RATIO DE LIQUIDEZ",
-            String.format("%.2f", ratioLiq) + "×",
-            "Activo Corriente / Pasivo Corriente",
+        kpiGrid.add(kpiCard("RATIO DE LIQUIDEZ", String.format("%.2f", ratioLiq) + "×",
+            "Activo corriente por cada dólar de deuda corriente",
             ratioLiq >= 1.0 ? "card-accent-indigo" : "card-accent-rose",
-            ratioLiq >= 1.0 ? "▲ Solvente" : "▼ Riesgo",
-            ratioLiq >= 1.0
-        ), 0, 1);
-        kpiGrid.add(kpiCard(
-            "MARGEN NETO",
-            String.format("%.1f", margen) + "%",
-            "Rentabilidad sobre ventas brutas",
-            margen >= 0 ? "card-accent-emerald" : "card-accent-rose",
-            margen >= 0 ? "▲ Positivo" : "▼ Negativo",
-            margen >= 0
-        ), 1, 1);
-        kpiGrid.add(kpiCard(
-            "TOTAL INGRESOS",
-            MONEDA.format(er.getTotalIngresos()),
-            "Ventas del período contable",
-            "card-accent-indigo", null, null
-        ), 2, 1);
-        kpiGrid.add(kpiCard(
-            "COSTOS Y GASTOS",
-            MONEDA.format(er.getTotalCostosYGastos()),
-            "Costo de ventas + Gastos operativos",
-            "card-accent-amber", null, null
-        ), 3, 1);
+            ratioLiq >= 1.0 ? "▲ Cubre obligaciones" : "▼ Revisar liquidez", ratioLiq >= 1.0), 0, 1);
+        kpiGrid.add(kpiCard("VENTAS NETAS", MONEDA.format(er.getTotalIngresos()),
+            "Ingresos después de devoluciones", "card-accent-indigo", null, null), 1, 1);
+        kpiGrid.add(kpiCard("COSTO DE VENTAS", MONEDA.format(er.getTotalCostos()),
+            "Costo de la mercancía vendida", "card-accent-amber", null, null), 2, 1);
+        kpiGrid.add(kpiCard("UTILIDAD NETA", MONEDA.format(er.getUtilidadNeta()),
+            String.format("Margen neto: %.1f%%", margen),
+            er.getUtilidadNeta() >= 0 ? "card-accent-emerald" : "card-accent-rose",
+            er.getUtilidadNeta() >= 0 ? "▲ Ganancia" : "▼ Pérdida", er.getUtilidadNeta() >= 0), 3, 1);
 
         // Gráficos
         HBox chartsRow = new HBox(20);
@@ -310,6 +280,14 @@ public class DashboardView extends ScrollPane {
 
         card.getChildren().addAll(lblT, lblV, bottom);
         return card;
+    }
+
+    private double sumarPorCodigo(List<BalanceGeneralDTO.LineaBalance> cuentas, String prefijo) {
+        return cuentas.stream()
+            .filter(cuenta -> cuenta.getCodigo() != null
+                && (cuenta.getCodigo().equals(prefijo) || cuenta.getCodigo().startsWith(prefijo + ".")))
+            .mapToDouble(BalanceGeneralDTO.LineaBalance::getMonto)
+            .sum();
     }
 
     /**

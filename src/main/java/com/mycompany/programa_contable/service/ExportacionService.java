@@ -5,6 +5,7 @@ import com.mycompany.programa_contable.model.BalanceGeneralDTO;
 import com.mycompany.programa_contable.model.BalanzaComprobacionDTO;
 import com.mycompany.programa_contable.model.DetalleAsiento;
 import com.mycompany.programa_contable.model.EstadoResultadosDTO;
+import com.mycompany.programa_contable.model.ConfiguracionDAO;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -14,13 +15,151 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Locale;
 
 public class ExportacionService {
+
+    public static final class FilaEstadoResultados {
+        private final String concepto;
+        private final Double detalle;
+        private final Double total;
+        private final boolean seccion;
+        private final boolean resaltada;
+
+        public FilaEstadoResultados(String concepto, Double detalle, Double total, boolean seccion, boolean resaltada) {
+            this.concepto = concepto;
+            this.detalle = detalle;
+            this.total = total;
+            this.seccion = seccion;
+            this.resaltada = resaltada;
+        }
+        public String getConcepto() { return concepto; }
+        public Double getDetalle() { return detalle; }
+        public Double getTotal() { return total; }
+        public boolean isSeccion() { return seccion; }
+        public boolean isResaltada() { return resaltada; }
+    }
+
+    /** Genera PDF sencillo y autónomo para que todos los reportes compartan formato. */
+    public static File exportarPDF(String titulo, List<String> lineas, File destino) throws IOException {
+        return exportarPDF(obtenerNombreEmpresa(), titulo, lineas, destino);
+    }
+
+    public static String obtenerNombreEmpresa() {
+        return new ConfiguracionDAO().obtenerNombreEmpresa();
+    }
+
+    public static File exportarPDF(String nombreEmpresa, String titulo, List<String> lineas, File destino) throws IOException {
+        destino = asegurarExtension(destino, ".pdf");
+        List<String> rows = new ArrayList<>();
+        for (String linea : lineas) if (linea != null && !linea.trim().isEmpty()) rows.add(linea.trim());
+        List<List<String>> pages = new ArrayList<>();
+        String tableHeader = !rows.isEmpty() && rows.get(0).contains("|") ? rows.get(0) : null;
+        int cursor = 0;
+        while (cursor < rows.size()) {
+            List<String> page = new ArrayList<>();
+            if (cursor > 0 && tableHeader != null) page.add(tableHeader);
+            int pageLimit = tableHeader == null ? 25 : (cursor == 0 ? 24 : 23);
+            int end = Math.min(rows.size(), cursor + pageLimit);
+            page.addAll(rows.subList(cursor, end));
+            pages.add(page);
+            cursor = end;
+        }
+        if (pages.isEmpty()) pages.add(new ArrayList<>());
+        List<byte[]> objects = new ArrayList<>();
+        objects.add(bytes("<< /Type /Catalog /Pages 2 0 R >>"));
+        StringBuilder kids = new StringBuilder("<< /Type /Pages /Kids [");
+        for (int i = 0; i < pages.size(); i++) kids.append(5 + i * 2).append(" 0 R ");
+        kids.append("] /Count ").append(pages.size()).append(" >>");
+        objects.add(bytes(kids.toString()));
+        objects.add(bytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"));
+        objects.add(bytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"));
+        for (int i = 0; i < pages.size(); i++) {
+            int pageId = 5 + i * 2, contentId = pageId + 1;
+            objects.add(bytes("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents " + contentId + " 0 R >>"));
+            StringBuilder stream = new StringBuilder();
+            stream.append("0.22 0.25 0.31 rg BT /F2 15 Tf 40 554 Td (").append(pdfEscape(nombreEmpresa)).append(") Tj ET\n");
+            stream.append("0.12 0.23 0.54 rg BT /F2 12 Tf 40 535 Td (").append(pdfEscape(titulo)).append(") Tj ET\n");
+            stream.append("0.45 0.49 0.55 rg BT /F1 8 Tf 40 521 Td (Generado el ")
+                    .append(pdfEscape(LocalDateTime.now().format(FECHA_HORA))).append(") Tj ET\n");
+            stream.append("0.55 0.12 0.22 RG 40 512 m 802 512 l S\n");
+            float y = 498;
+            for (String row : pages.get(i)) {
+                String[] cells = row.split("\\s*\\|\\s*", -1);
+                if (cells.length > 1) {
+                    boolean isHeader = isPdfTableHeader(cells);
+                    float rowHeight = isHeader ? 19 : 14;
+                    float colWidth = 762f / cells.length;
+                    if (isHeader) {
+                        stream.append("0.55 0.12 0.22 rg 40 ").append(fmt(y-rowHeight+3)).append(" 762 ").append(fmt(rowHeight)).append(" re f\n");
+                        stream.append("1 1 1 rg\n");
+                    } else {
+                        if ((i + (int)(y * 10)) % 2 == 0) stream.append("0.96 0.97 0.98 rg 40 ").append(fmt(y-rowHeight+3)).append(" 762 ").append(fmt(rowHeight)).append(" re f\n");
+                        stream.append("0.82 0.85 0.89 RG 0.45 w 40 ").append(fmt(y-rowHeight+3)).append(" 762 ").append(fmt(rowHeight)).append(" re S\n");
+                        stream.append("0.16 0.19 0.24 rg\n");
+                    }
+                    stream.append("BT /").append(isHeader ? "F2" : "F1").append(" ").append(cells.length >= 7 ? "7" : "8").append(" Tf\n");
+                    for (int c = 0; c < cells.length; c++) {
+                        float x = 44 + c * colWidth;
+                        int max = Math.max(5, (int)(colWidth / (cells.length >= 7 ? 4.1 : 4.6)));
+                        String cell = cells[c].trim();
+                        if (cell.length() > max) cell = cell.substring(0, max - 1) + "…";
+                        stream.append("1 0 0 1 ").append(fmt(x)).append(" ").append(fmt(y-10)).append(" Tm (").append(pdfEscape(cell)).append(") Tj\n");
+                    }
+                    stream.append("ET\n");
+                    y -= rowHeight;
+                } else if (row.startsWith("Nota:")) {
+                    stream.append("0.40 0.44 0.50 rg BT /F1 8 Tf 42 ").append(fmt(y)).append(" Td (").append(pdfEscape(row.substring(5).trim())).append(") Tj ET\n");
+                    y -= 15;
+                } else if (row.startsWith("FIRMAS:")) {
+                    stream.append("0.72 0.75 0.79 RG 0.7 w 55 ").append(fmt(y-4)).append(" m 350 ").append(fmt(y-4)).append(" l S 455 ").append(fmt(y-4)).append(" m 750 ").append(fmt(y-4)).append(" l S\n");
+                    stream.append("0.25 0.29 0.35 rg BT /F1 8 Tf 155 ").append(fmt(y-17)).append(" Td (Contador general) Tj ET\n");
+                    stream.append("0.25 0.29 0.35 rg BT /F1 8 Tf 545 ").append(fmt(y-17)).append(" Td (Representante legal) Tj ET\n");
+                    y -= 32;
+                } else {
+                    stream.append("0.12 0.23 0.54 rg 40 ").append(fmt(y-14)).append(" 762 17 re f\n");
+                    stream.append("1 1 1 rg BT /F2 9 Tf 50 ").append(fmt(y-9)).append(" Td (").append(pdfEscape(row)).append(") Tj ET\n");
+                    y -= 17;
+                }
+            }
+            stream.append("0.45 0.49 0.55 rg BT /F1 8 Tf 720 22 Td (Página ").append(i+1).append(" de ").append(pages.size()).append(") Tj ET\n");
+            byte[] data = stream.toString().getBytes(java.nio.charset.Charset.forName("windows-1252"));
+            ByteArrayOutputStream obj = new ByteArrayOutputStream();
+            obj.write(bytes("<< /Length " + data.length + " >>\nstream\n")); obj.write(data); obj.write(bytes("\nendstream"));
+            objects.add(obj.toByteArray());
+        }
+        ByteArrayOutputStream pdf = new ByteArrayOutputStream();
+        pdf.write("%PDF-1.4\n%".getBytes(StandardCharsets.ISO_8859_1));
+        pdf.write(new byte[]{(byte) 0xE2, (byte) 0xE3, (byte) 0xCF, (byte) 0xD3, 10});
+        List<Integer> offsets = new ArrayList<>(); offsets.add(0);
+        for (int i = 0; i < objects.size(); i++) { offsets.add(pdf.size()); pdf.write(bytes((i + 1) + " 0 obj\n")); pdf.write(objects.get(i)); pdf.write(bytes("\nendobj\n")); }
+        int xref = pdf.size(); pdf.write(bytes("xref\n0 " + (objects.size() + 1) + "\n0000000000 65535 f \n"));
+        for (int i = 1; i < offsets.size(); i++) pdf.write(bytes(String.format(Locale.ROOT, "%010d 00000 n \n", offsets.get(i))));
+        pdf.write(bytes("trailer\n<< /Size " + (objects.size() + 1) + " /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF"));
+        try (FileOutputStream out = new FileOutputStream(destino)) { pdf.writeTo(out); }
+        return destino;
+    }
+
+    private static byte[] bytes(String value) { return value.getBytes(StandardCharsets.ISO_8859_1); }
+    private static String fmt(float value) { return String.format(Locale.ROOT, "%.2f", value); }
+    private static boolean isPdfTableHeader(String[] cells) {
+        String first = cells[0].trim().toLowerCase(Locale.ROOT);
+        return first.equals("fecha") || first.equals("código") || first.equals("codigo")
+                || first.equals("asiento") || first.equals("cuenta") || first.equals("concepto");
+    }
+    private static String pdfEscape(String value) { return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").replaceAll("[\\r\\n]", " "); }
+
+    public static File asegurarExtension(File file, String extension) {
+        if (file == null || file.getName().toLowerCase(Locale.ROOT).endsWith(extension)) return file;
+        return new File(file.getParentFile(), file.getName() + extension);
+    }
 
     private static final DecimalFormat MONEDA = new DecimalFormat("$#,##0.00");
     private static final DateTimeFormatter FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
@@ -141,6 +280,10 @@ public class ExportacionService {
             for (EstadoResultadosDTO.LineaReporte l : er.getGastosVenta()) {
                 pw.println("<tr><td>" + l.getCodigo() + "</td><td>" + l.getNombre() + "</td><td class='num'>" + MONEDA.format(l.getMonto()) + "</td><td></td></tr>");
             }
+            pw.println("<tr style='background:#f8fafc;'><td colspan='4'><strong style='color:#334155;'>(-) GASTOS FINANCIEROS</strong></td></tr>");
+            for (EstadoResultadosDTO.LineaReporte l : er.getGastosFinancieros()) {
+                pw.println("<tr><td>" + l.getCodigo() + "</td><td>" + l.getNombre() + "</td><td class='num'>" + MONEDA.format(l.getMonto()) + "</td><td></td></tr>");
+            }
             pw.println("<tr class='total-row' style='background:#fef3c7; color:#b45309; border-top-color:#fcd34d; border-bottom-color:#fcd34d;'><td colspan='3'>UTILIDAD DE OPERACIÓN</td><td class='num'>" + MONEDA.format(er.getUtilidadOperacion()) + "</td></tr>");
 
             if (!er.getOtrosIngresos().isEmpty()) {
@@ -241,6 +384,7 @@ public class ExportacionService {
     }
 
     public static File exportarBalanceGeneralExcel(BalanceGeneralDTO bg, String nombreEmpresa, File destino) throws IOException {
+        destino = asegurarExtension(destino, ".xlsx");
         try (Workbook wb = new XSSFWorkbook()) {
             Sheet sheet = wb.createSheet("Balance General");
 
@@ -437,6 +581,38 @@ public class ExportacionService {
     }
 
     public static File exportarEstadoResultadosExcel(EstadoResultadosDTO er, String nombreEmpresa, File destino) throws IOException {
+        List<FilaEstadoResultados> filas = crearFilasEstadoResultados(er);
+        return exportarEstadoResultadosExcel(nombreEmpresa, filas, destino);
+    }
+
+    private static List<FilaEstadoResultados> crearFilasEstadoResultados(EstadoResultadosDTO er) {
+        List<FilaEstadoResultados> filas = new ArrayList<>();
+        filas.add(new FilaEstadoResultados("5 Ventas", null, null, true, false));
+        agregarDetalles(filas, "Ventas", er.getIngresosOperacion());
+        filas.add(new FilaEstadoResultados("Ventas netas", null, er.getTotalIngresos(), false, false));
+        filas.add(new FilaEstadoResultados("4 Costos", null, null, true, false));
+        agregarDetalles(filas, "Costo", er.getCostosVenta());
+        filas.add(new FilaEstadoResultados("Costo ventas", null, er.getTotalCostos(), false, false));
+        filas.add(new FilaEstadoResultados("Utilidad bruta", null, er.getUtilidadBruta(), false, false));
+        filas.add(new FilaEstadoResultados("Gasto operación", null, null, true, false));
+        agregarDetalles(filas, "Gasto administrativo", er.getGastosAdministracion());
+        agregarDetalles(filas, "Gasto ventas", er.getGastosVenta());
+        agregarDetalles(filas, "Gasto financiero", er.getGastosFinancieros());
+        filas.add(new FilaEstadoResultados("Total gasto operación", null, er.getTotalGastosOperacion(), false, false));
+        filas.add(new FilaEstadoResultados("Utilidad operacional", null, er.getUtilidadOperacion(), false, true));
+        filas.add(new FilaEstadoResultados("UTILIDAD NETA DEL EJERCICIO", null, er.getUtilidadNeta(), false, false));
+        return filas;
+    }
+
+    private static void agregarDetalles(List<FilaEstadoResultados> destino, String prefijo,
+            List<EstadoResultadosDTO.LineaReporte> lineas) {
+        for (EstadoResultadosDTO.LineaReporte linea : lineas) {
+            destino.add(new FilaEstadoResultados(prefijo + " · " + linea.getNombre(), linea.getMonto(), null, false, false));
+        }
+    }
+
+    public static File exportarEstadoResultadosExcel(String nombreEmpresa, List<FilaEstadoResultados> filas, File destino) throws IOException {
+        destino = asegurarExtension(destino, ".xlsx");
         try (Workbook wb = new XSSFWorkbook()) {
             Sheet sheet = wb.createSheet("Estado Resultados");
 
@@ -463,133 +639,88 @@ public class ExportacionService {
             styleRowTotalLabel.setBorderTop(BorderStyle.THIN);
             styleRowTotalLabel.setBorderBottom(BorderStyle.THIN);
 
+            Font sectionFont = wb.createFont(); sectionFont.setBold(true); sectionFont.setColor(IndexedColors.WHITE.getIndex());
+            CellStyle styleSection = wb.createCellStyle(); styleSection.setFont(sectionFont);
+            styleSection.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex()); styleSection.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            styleSection.setVerticalAlignment(VerticalAlignment.CENTER);
+            Font finalFont = wb.createFont(); finalFont.setBold(true); finalFont.setColor(IndexedColors.DARK_RED.getIndex());
+            CellStyle styleFinal = wb.createCellStyle(); styleFinal.cloneStyleFrom(styleRowTotal);
+            styleFinal.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex()); styleFinal.setFillPattern(FillPatternType.SOLID_FOREGROUND); styleFinal.setFont(finalFont);
+            CellStyle styleSectionCell = wb.createCellStyle(); styleSectionCell.cloneStyleFrom(styleSection);
+            CellStyle styleDetailTotal = wb.createCellStyle(); styleDetailTotal.cloneStyleFrom(styleCurrency);
+            styleDetailTotal.setBorderBottom(BorderStyle.THIN);
+            styleDetailTotal.setBottomBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            CellStyle styleDetailLabel = wb.createCellStyle(); styleDetailLabel.cloneStyleFrom(styleDetailTotal);
+
             int rowIdx = 0;
             Row rowTitle = sheet.createRow(rowIdx++);
             Cell cellTitle = rowTitle.createCell(0);
             cellTitle.setCellValue(nombreEmpresa);
             cellTitle.setCellStyle(styleTitle);
-            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 3));
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 2));
             
             Row rowSubtitle1 = sheet.createRow(rowIdx++);
             Cell cellSubtitle1 = rowSubtitle1.createCell(0);
             cellSubtitle1.setCellValue("ESTADO DE RESULTADOS");
             cellSubtitle1.setCellStyle(styleTitle);
-            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 3));
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 2));
             
             Row rowSubtitle2 = sheet.createRow(rowIdx++);
             Cell cellSubtitle2 = rowSubtitle2.createCell(0);
             cellSubtitle2.setCellValue("Generado el " + LocalDateTime.now().format(FECHA_HORA) + " | Expresado en USD");
             cellSubtitle2.setCellStyle(styleSubtitle);
-            sheet.addMergedRegion(new CellRangeAddress(2, 2, 0, 3));
+            sheet.addMergedRegion(new CellRangeAddress(2, 2, 0, 2));
 
             rowIdx++;
 
             Row headerRow = sheet.createRow(rowIdx++);
-            String[] headers = {"Código", "Concepto", "Subtotal", "Total"};
+            String[] headers = {"Concepto", "Detalle", "Total"};
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(styleHeader);
             }
 
-            // Ingresos
-            Row rowSec = sheet.createRow(rowIdx++);
-            Cell cellSec = rowSec.createCell(1);
-            cellSec.setCellValue("5. INGRESOS DE OPERACIÓN");
-            cellSec.setCellStyle(styleBold);
-            for (EstadoResultadosDTO.LineaReporte l : er.getIngresosOperacion()) {
+            for (FilaEstadoResultados fila : filas) {
                 Row row = sheet.createRow(rowIdx++);
-                row.createCell(0).setCellValue(l.getCodigo());
-                row.createCell(1).setCellValue(l.getNombre());
-                Cell c = row.createCell(2);
-                c.setCellValue(l.getMonto());
-                c.setCellStyle(styleCurrency);
-            }
-
-            // Costos
-            Row rowSecC = sheet.createRow(rowIdx++);
-            Cell cellSecC = rowSecC.createCell(1);
-            cellSecC.setCellValue("(-) 41. COSTO DE VENTAS");
-            cellSecC.setCellStyle(styleBold);
-            for (EstadoResultadosDTO.LineaReporte l : er.getCostosVenta()) {
-                Row row = sheet.createRow(rowIdx++);
-                row.createCell(0).setCellValue(l.getCodigo());
-                row.createCell(1).setCellValue(l.getNombre());
-                Cell c = row.createCell(2);
-                c.setCellValue(l.getMonto());
-                c.setCellStyle(styleCurrency);
-            }
-            
-            Row rowBruta = sheet.createRow(rowIdx++);
-            Cell cellBrutaLabel = rowBruta.createCell(1);
-            cellBrutaLabel.setCellValue("UTILIDAD BRUTA");
-            cellBrutaLabel.setCellStyle(styleBold);
-            Cell cellBruta = rowBruta.createCell(3);
-            cellBruta.setCellValue(er.getUtilidadBruta());
-            cellBruta.setCellStyle(styleCurrencyBold);
-
-            // Gastos Adm
-            Row rowSecA = sheet.createRow(rowIdx++);
-            Cell cellSecA = rowSecA.createCell(1);
-            cellSecA.setCellValue("(-) 42. GASTOS DE ADMINISTRACIÓN");
-            cellSecA.setCellStyle(styleBold);
-            for (EstadoResultadosDTO.LineaReporte l : er.getGastosAdministracion()) {
-                Row row = sheet.createRow(rowIdx++);
-                row.createCell(0).setCellValue(l.getCodigo());
-                row.createCell(1).setCellValue(l.getNombre());
-                Cell c = row.createCell(2);
-                c.setCellValue(l.getMonto());
-                c.setCellStyle(styleCurrency);
-            }
-            
-            // Gastos Venta
-            Row rowSecV = sheet.createRow(rowIdx++);
-            Cell cellSecV = rowSecV.createCell(1);
-            cellSecV.setCellValue("(-) 43. GASTOS DE VENTA");
-            cellSecV.setCellStyle(styleBold);
-            for (EstadoResultadosDTO.LineaReporte l : er.getGastosVenta()) {
-                Row row = sheet.createRow(rowIdx++);
-                row.createCell(0).setCellValue(l.getCodigo());
-                row.createCell(1).setCellValue(l.getNombre());
-                Cell c = row.createCell(2);
-                c.setCellValue(l.getMonto());
-                c.setCellStyle(styleCurrency);
-            }
-            
-            Row rowOper = sheet.createRow(rowIdx++);
-            Cell cellOperLabel = rowOper.createCell(1);
-            cellOperLabel.setCellValue("UTILIDAD DE OPERACIÓN");
-            cellOperLabel.setCellStyle(styleBold);
-            Cell cellOper = rowOper.createCell(3);
-            cellOper.setCellValue(er.getUtilidadOperacion());
-            cellOper.setCellStyle(styleCurrencyBold);
-            
-            if (!er.getOtrosIngresos().isEmpty()) {
-                Row rowSecO = sheet.createRow(rowIdx++);
-                Cell cellSecO = rowSecO.createCell(1);
-                cellSecO.setCellValue("(+) OTROS INGRESOS");
-                cellSecO.setCellStyle(styleBold);
-                for (EstadoResultadosDTO.LineaReporte l : er.getOtrosIngresos()) {
-                    Row row = sheet.createRow(rowIdx++);
-                    row.createCell(0).setCellValue(l.getCodigo());
-                    row.createCell(1).setCellValue(l.getNombre());
-                    Cell c = row.createCell(2);
-                    c.setCellValue(l.getMonto());
-                    c.setCellStyle(styleCurrency);
+                if (fila.isSeccion()) {
+                    Cell cell = row.createCell(0); cell.setCellValue(fila.getConcepto()); cell.setCellStyle(styleSection);
+                    for (int col = 1; col < 3; col++) row.createCell(col).setCellStyle(styleSectionCell);
+                    sheet.addMergedRegion(new CellRangeAddress(row.getRowNum(), row.getRowNum(), 0, 2));
+                    row.setHeightInPoints(22);
+                    continue;
                 }
+                Cell concept = row.createCell(0); concept.setCellValue(fila.getConcepto());
+                Cell detail = row.createCell(1); Cell total = row.createCell(2);
+                concept.setCellStyle(fila.isResaltada() ? styleRowTotalLabel : styleDetailLabel);
+                detail.setCellStyle(styleDetailTotal); total.setCellStyle(styleDetailTotal);
+                if (fila.getDetalle() != null) { detail.setCellValue(fila.getDetalle()); detail.setCellStyle(styleDetailTotal); }
+                if (fila.getTotal() != null) { total.setCellValue(fila.getTotal()); total.setCellStyle(fila.isResaltada() ? styleFinal : styleRowTotal); }
+                if (fila.isResaltada()) { concept.setCellStyle(styleRowTotalLabel); detail.setCellStyle(styleRowTotalLabel); total.setCellStyle(styleFinal); }
+                else if (fila.getTotal() != null) concept.setCellStyle(styleBold);
             }
-            
-            Row rowNeta = sheet.createRow(rowIdx++);
-            Cell cellNetaLabel = rowNeta.createCell(1);
-            cellNetaLabel.setCellValue("UTILIDAD NETA DEL EJERCICIO");
-            cellNetaLabel.setCellStyle(styleRowTotalLabel);
-            Cell cellNeta = rowNeta.createCell(3);
-            cellNeta.setCellValue(er.getUtilidadNeta());
-            cellNeta.setCellStyle(styleRowTotal);
 
-            for (int i = 0; i < 4; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            rowIdx++;
+            Row footer = sheet.createRow(rowIdx++);
+            Cell footerCell = footer.createCell(0);
+            footerCell.setCellValue("Este estado financiero se preparó con base en los registros contables y el método PEPS aplicado al inventario.");
+            footerCell.setCellStyle(styleSubtitle);
+            sheet.addMergedRegion(new CellRangeAddress(footer.getRowNum(), footer.getRowNum(), 0, 2));
+            rowIdx++;
+            Row signatures = sheet.createRow(rowIdx++);
+            signatures.createCell(0).setCellValue("__________________________");
+            signatures.createCell(2).setCellValue("__________________________");
+            Row signLabels = sheet.createRow(rowIdx);
+            signLabels.createCell(0).setCellValue("Contador general");
+            signLabels.createCell(2).setCellValue("Representante legal");
+
+            sheet.setColumnWidth(0, 42 * 256); sheet.setColumnWidth(1, 24 * 256); sheet.setColumnWidth(2, 24 * 256);
+            sheet.createFreezePane(0, 5);
+            sheet.setDisplayGridlines(false);
+            sheet.getPrintSetup().setLandscape(true);
+            sheet.getPrintSetup().setFitWidth((short) 1);
+            sheet.setFitToPage(true);
+            sheet.setRepeatingRows(CellRangeAddress.valueOf("5:5"));
 
             try (FileOutputStream fos = new FileOutputStream(destino)) {
                 wb.write(fos);
@@ -599,6 +730,11 @@ public class ExportacionService {
     }
 
     public static File exportarBalanzaComprobacionExcel(BalanzaComprobacionDTO balanza, File destino) throws IOException {
+        return exportarBalanzaComprobacionExcel(balanza, obtenerNombreEmpresa(), destino);
+    }
+
+    public static File exportarBalanzaComprobacionExcel(BalanzaComprobacionDTO balanza, String nombreEmpresa, File destino) throws IOException {
+        destino = asegurarExtension(destino, ".xlsx");
         try (Workbook wb = new XSSFWorkbook()) {
             Sheet sheet = wb.createSheet("Balanza Comprobación");
 
@@ -612,11 +748,16 @@ public class ExportacionService {
             crearEstilosExcel(wb, styleHeader, styleBold, styleCurrency, styleCurrencyBold, styleTitle, styleSubtitle);
 
             int rowIdx = 0;
+            Row rowCompany = sheet.createRow(rowIdx++);
+            Cell companyCell = rowCompany.createCell(0);
+            companyCell.setCellValue(nombreEmpresa);
+            companyCell.setCellStyle(styleSubtitle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
             Row rowTitle = sheet.createRow(rowIdx++);
             Cell cellTitle = rowTitle.createCell(0);
             cellTitle.setCellValue("BALANZA DE COMPROBACIÓN");
             cellTitle.setCellStyle(styleTitle);
-            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 6));
 
             rowIdx++;
 
@@ -662,6 +803,11 @@ public class ExportacionService {
     }
 
     public static File exportarLibroDiarioExcel(List<Asiento> asientos, File destino) throws IOException {
+        return exportarLibroDiarioExcel(asientos, obtenerNombreEmpresa(), destino);
+    }
+
+    public static File exportarLibroDiarioExcel(List<Asiento> asientos, String nombreEmpresa, File destino) throws IOException {
+        destino = asegurarExtension(destino, ".xlsx");
         try (Workbook wb = new XSSFWorkbook()) {
             Sheet sheet = wb.createSheet("Libro Diario");
 
@@ -675,11 +821,16 @@ public class ExportacionService {
             crearEstilosExcel(wb, styleHeader, styleBold, styleCurrency, styleCurrencyBold, styleTitle, styleSubtitle);
 
             int rowIdx = 0;
+            Row rowCompany = sheet.createRow(rowIdx++);
+            Cell companyCell = rowCompany.createCell(0);
+            companyCell.setCellValue(nombreEmpresa);
+            companyCell.setCellStyle(styleSubtitle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
             Row rowTitle = sheet.createRow(rowIdx++);
             Cell cellTitle = rowTitle.createCell(0);
             cellTitle.setCellValue("LIBRO DIARIO");
             cellTitle.setCellStyle(styleTitle);
-            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 6));
 
             rowIdx++;
 
@@ -722,6 +873,11 @@ public class ExportacionService {
     }
     
     public static File exportarKardexExcel(List<com.mycompany.programa_contable.model.KardexFilaDTO> reporteKardex, String nombreProducto, File destino) throws IOException {
+        return exportarKardexExcel(reporteKardex, nombreProducto, obtenerNombreEmpresa(), destino);
+    }
+
+    public static File exportarKardexExcel(List<com.mycompany.programa_contable.model.KardexFilaDTO> reporteKardex, String nombreProducto, String nombreEmpresa, File destino) throws IOException {
+        destino = asegurarExtension(destino, ".xlsx");
         try (Workbook wb = new XSSFWorkbook()) {
             Sheet sheet = wb.createSheet("Kárdex");
 
@@ -735,11 +891,16 @@ public class ExportacionService {
             crearEstilosExcel(wb, styleHeader, styleBold, styleCurrency, styleCurrencyBold, styleTitle, styleSubtitle);
 
             int rowIdx = 0;
+            Row rowCompany = sheet.createRow(rowIdx++);
+            Cell companyCell = rowCompany.createCell(0);
+            companyCell.setCellValue(nombreEmpresa);
+            companyCell.setCellStyle(styleSubtitle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 7));
             Row rowTitle = sheet.createRow(rowIdx++);
             Cell cellTitle = rowTitle.createCell(0);
             cellTitle.setCellValue("KÁRDEX DE INVENTARIO - MÉTODO PEPS");
             cellTitle.setCellStyle(styleTitle);
-            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 7));
+            sheet.addMergedRegion(new CellRangeAddress(2, 2, 0, 7));
             
             Row rowSubtitle = sheet.createRow(rowIdx++);
             Cell cellSubtitle = rowSubtitle.createCell(0);

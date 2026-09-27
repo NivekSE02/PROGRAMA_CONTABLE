@@ -5,6 +5,7 @@ import com.mycompany.programa_contable.ui.views.MainLayoutView;
 import javafx.application.Application;
 import javafx.scene.image.Image;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
@@ -24,7 +25,18 @@ public class MainApp extends Application {
             stage.getIcons().add(new Image(iconUrl.toExternalForm()));
         }
 
-        DatabaseManager.getInstance().initDatabase();
+        try {
+            DatabaseManager.getInstance().initDatabase();
+        } catch (IllegalStateException e) {
+            Alert error = new Alert(Alert.AlertType.ERROR,
+                    "No se pudo iniciar ContaNoPortable porque no fue posible preparar su base de datos local.\n\n"
+                            + e.getMessage());
+            error.setTitle("Error al iniciar");
+            error.setHeaderText(null);
+            error.showAndWait();
+            javafx.application.Platform.exit();
+            return;
+        }
         mostrarMain();
 
         stage.setMinWidth(1200);

@@ -24,6 +24,11 @@ public class MayorizacionService {
     }
 
     public List<MayorCuenta> obtenerMayorizacion(boolean incluirCuentasSinMovimiento) {
+        return obtenerMayorizacion(incluirCuentasSinMovimiento, null, null);
+    }
+
+    public List<MayorCuenta> obtenerMayorizacion(boolean incluirCuentasSinMovimiento,
+            String fechaDesde, String fechaHasta) {
         Map<String, MayorCuenta> mapaMayor = new LinkedHashMap<>();
 
         // Cargar todas las cuentas del catálogo ordenadas por código
@@ -63,15 +68,20 @@ public class MayorizacionService {
         }
 
         // Consolidar movimientos desde detalle_asiento
-        String sqlMovs = "SELECT d.cuenta_codigo, a.numero as asiento_num, a.fecha, " +
-                         "COALESCE(d.concepto_linea, a.concepto) as concepto, d.debe, d.haber " +
-                         "FROM detalle_asiento d " +
-                         "INNER JOIN asientos a ON d.asiento_id = a.id " +
-                         "ORDER BY a.fecha ASC, a.numero ASC, d.renglon ASC";
+        StringBuilder sqlMovs = new StringBuilder(
+                "SELECT d.cuenta_codigo, a.numero as asiento_num, a.fecha, "
+                + "COALESCE(d.concepto_linea, a.concepto) as concepto, d.debe, d.haber "
+                + "FROM detalle_asiento d INNER JOIN asientos a ON d.asiento_id = a.id WHERE 1=1 ");
+        if (fechaDesde != null && !fechaDesde.isBlank()) sqlMovs.append("AND a.fecha >= ? ");
+        if (fechaHasta != null && !fechaHasta.isBlank()) sqlMovs.append("AND a.fecha <= ? ");
+        sqlMovs.append("ORDER BY a.fecha ASC, a.numero ASC, d.renglon ASC");
 
         try (Connection conn = dbManager.getConnection();
-             Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery(sqlMovs)) {
+             PreparedStatement ps = conn.prepareStatement(sqlMovs.toString())) {
+            int parametro = 1;
+            if (fechaDesde != null && !fechaDesde.isBlank()) ps.setString(parametro++, fechaDesde);
+            if (fechaHasta != null && !fechaHasta.isBlank()) ps.setString(parametro, fechaHasta);
+            try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 String ctaCod = rs.getString("cuenta_codigo");
                 int num = rs.getInt("asiento_num");
@@ -84,6 +94,7 @@ public class MayorizacionService {
                 if (mayor != null) {
                     mayor.agregarMovimiento(num, fec, conc, d, h);
                 }
+            }
             }
         } catch (SQLException e) {
             System.err.println("[MayorizacionService] Error al consolidar movimientos: " + e.getMessage());
@@ -99,6 +110,10 @@ public class MayorizacionService {
     }
 
     public List<MayorCuenta> obtenerMayorizacionParaCuentasT() {
+        return obtenerMayorizacionParaCuentasT(null, null);
+    }
+
+    public List<MayorCuenta> obtenerMayorizacionParaCuentasT(String fechaDesde, String fechaHasta) {
         Map<String, MayorCuenta> mapaMayor = new LinkedHashMap<>();
 
         String sqlCuentas = "SELECT codigo, nombre, tipo, naturaleza, nivel, permite_movimiento, cuenta_padre, subtipo FROM cuentas ORDER BY codigo ASC";
@@ -136,15 +151,20 @@ public class MayorizacionService {
             System.err.println("[MayorizacionService] Error al cargar catálogo para T: " + e.getMessage());
         }
 
-        String sqlMovs = "SELECT d.cuenta_codigo, a.numero as asiento_num, a.fecha, " +
-                         "COALESCE(d.concepto_linea, a.concepto) as concepto, d.debe, d.haber " +
-                         "FROM detalle_asiento d " +
-                         "INNER JOIN asientos a ON d.asiento_id = a.id " +
-                         "ORDER BY a.fecha ASC, a.numero ASC, d.renglon ASC";
+        StringBuilder sqlMovs = new StringBuilder(
+                "SELECT d.cuenta_codigo, a.numero as asiento_num, a.fecha, "
+                + "COALESCE(d.concepto_linea, a.concepto) as concepto, d.debe, d.haber "
+                + "FROM detalle_asiento d INNER JOIN asientos a ON d.asiento_id = a.id WHERE 1=1 ");
+        if (fechaDesde != null && !fechaDesde.isBlank()) sqlMovs.append("AND a.fecha >= ? ");
+        if (fechaHasta != null && !fechaHasta.isBlank()) sqlMovs.append("AND a.fecha <= ? ");
+        sqlMovs.append("ORDER BY a.fecha ASC, a.numero ASC, d.renglon ASC");
 
         try (Connection conn = dbManager.getConnection();
-             Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery(sqlMovs)) {
+             PreparedStatement ps = conn.prepareStatement(sqlMovs.toString())) {
+            int parametro = 1;
+            if (fechaDesde != null && !fechaDesde.isBlank()) ps.setString(parametro++, fechaDesde);
+            if (fechaHasta != null && !fechaHasta.isBlank()) ps.setString(parametro, fechaHasta);
+            try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 String ctaCod = rs.getString("cuenta_codigo");
                 int num = rs.getInt("asiento_num");
@@ -164,6 +184,7 @@ public class MayorizacionService {
                         currentCod = null;
                     }
                 }
+            }
             }
         } catch (SQLException e) {
             System.err.println("[MayorizacionService] Error al consolidar T: " + e.getMessage());

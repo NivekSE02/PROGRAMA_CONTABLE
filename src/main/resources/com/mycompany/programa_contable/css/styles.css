@@ -511,8 +511,8 @@
     -fx-border-radius: 8px;
     -fx-border-color: #e2e8f0;
     -fx-border-width: 1px;
-    -fx-pref-width: 380px; /* Ancho ajustado a 1920px */
-    -fx-min-width: 340px;
+    -fx-pref-width: 430px;
+    -fx-min-width: 430px;
 }
 .t-account-header {
     -fx-background-color: #ffffff;
@@ -525,20 +525,20 @@
 .t-account-title {
     -fx-text-fill: #0f172a;
     -fx-font-weight: 700;
-    -fx-font-size: 15px;
+    -fx-font-size: 17px;
 }
 .t-column-header {
     -fx-font-weight: 600;
-    -fx-font-size: 12px;
+    -fx-font-size: 14px;
     -fx-text-fill: #64748b;
     -fx-padding: 10px;
     -fx-alignment: center;
 }
 .t-cell {
     -fx-font-family: 'Consolas', monospace;
-    -fx-font-size: 14px;
+    -fx-font-size: 16px;
     -fx-text-fill: #334155;
-    -fx-padding: 6px 12px;
+    -fx-padding: 8px 6px;
 }
 .t-footer-line {
     -fx-border-color: #e2e8f0;

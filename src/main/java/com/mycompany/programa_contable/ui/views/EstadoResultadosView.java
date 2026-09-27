@@ -1,6 +1,7 @@
 package com.mycompany.programa_contable.ui.views;
 
 import com.mycompany.programa_contable.model.EstadoResultadosDTO;
+import com.mycompany.programa_contable.model.NaturalezaCuenta;
 import com.mycompany.programa_contable.service.ExportacionService;
 import com.mycompany.programa_contable.service.KardexService;
 import com.mycompany.programa_contable.service.MayorizacionService;
@@ -32,6 +33,8 @@ public class EstadoResultadosView extends ScrollPane {
 
     private VBox mainContainer;
     private EstadoResultadosDTO estadoActual;
+    private List<MayorCuenta> cuentasMayorizadas;
+    private List<ExportacionService.FilaEstadoResultados> filasExportacion = new java.util.ArrayList<>();
 
     public EstadoResultadosView() {
         setFitToWidth(true);
@@ -49,6 +52,7 @@ public class EstadoResultadosView extends ScrollPane {
     public void cargarDatos() {
         mainContainer.getChildren().clear();
         estadoActual = reportesService.generarEstadoResultados();
+        cuentasMayorizadas = mayorizacionService.obtenerMayorizacion(true);
 
         // ── Cabecera ──────────────────────────────────────────────────
         HBox topBar = new HBox(12);
@@ -62,17 +66,7 @@ public class EstadoResultadosView extends ScrollPane {
         titleBox.getChildren().addAll(lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        MenuButton btnImprimir = new MenuButton("Exportar Reporte");
-        btnImprimir.getStyleClass().add("btn-primary");
-        btnImprimir.getStyleClass().add("export-button");
-        btnImprimir.setStyle("-fx-text-fill: white;");
-        MenuItem mnuHtml = new MenuItem("Exportar a HTML");
-        mnuHtml.getStyleClass().add("export-menu-item");
-        mnuHtml.setOnAction(e -> exportarHTML());
-        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
-        mnuExcel.getStyleClass().add("export-menu-item");
-        mnuExcel.setOnAction(e -> exportarExcel());
-        btnImprimir.getItems().addAll(mnuHtml, mnuExcel);
+        MenuButton btnImprimir = ExportMenuFactory.crear(this::exportarPDF, this::exportarExcel);
 
         Button btnRefrescar = new Button("Actualizar");
         btnRefrescar.getStyleClass().add("btn-secondary");
@@ -82,33 +76,57 @@ public class EstadoResultadosView extends ScrollPane {
 
         // ── Obtener valores desde Mayor y Kardex ──────────────────────
         // Ventas (4.1) y devoluciones sobre ventas (4.2)
-        double ventasTotales    = getSaldoNeto("4.1");
-        double devVentas        = getSaldoNeto("4.2");
+        double ventasTotales    = getSaldoGrupoNormal("4.1", NaturalezaCuenta.ACREEDORA);
+        double devVentas        = getSaldoGrupoNormal("4.2", NaturalezaCuenta.DEUDORA);
         double ventasNetas      = redondear(ventasTotales - devVentas);
 
         // Inventario inicial (saldo contable de cuenta 1.2)
-        double inventarioInicial = Math.abs(getSaldoNeto("1.2"));
+        double inventarioInicial = getSaldoGrupoNormal("1.2", NaturalezaCuenta.DEUDORA);
 
         // Compras (5.4) y devoluciones sobre compras (5.1) y gastos de compra (si hay)
-        double compras          = Math.abs(getSaldoNeto("5.4"));
+        double compras          = getSaldoGrupoNormal("5.4", NaturalezaCuenta.DEUDORA);
         double gastoDeCompra    = 0.0;   // Cuenta específica de gasto de compra (no existe en catálogo actual)
         double comprasTotales   = redondear(compras + gastoDeCompra);
-        double devCompras       = Math.abs(getSaldoNeto("5.1"));
+        double devCompras       = getSaldoGrupoNormal("5.1", NaturalezaCuenta.ACREEDORA);
         double comprasNetas     = redondear(comprasTotales - devCompras);
         double mercDisponible   = redondear(inventarioInicial + comprasNetas);
 
-        // El saldo final del Kárdex incorpora devoluciones de clientes y a proveedores.
-        // No se debe deducir a partir del total bruto de salidas.
-        double inventarioFinal  = redondear(kardexService.obtenerInventarioFinal(1));
-        double costoVentas      = redondear(mercDisponible - inventarioFinal);
+        // El costo de ventas sale del costo valorizado de las salidas de venta.
+        // El saldo guardado en Kárdex puede provenir de versiones anteriores que
+        // valoraron compras por cantidad * costo unitario y no por el asiento.
+        double costoVentas      = redondear(kardexService.obtenerCostoDeVentasTotal());
+        double inventarioFinal  = redondear(mercDisponible - costoVentas);
         double utilidadBruta    = redondear(ventasNetas - costoVentas);
 
         // Gastos de operación
-        double gastoAdmin       = getSaldoGrupoHojas("6.2");
-        double gastoVenta       = getSaldoGrupoHojas("6.3");
-        double gastosFinancieros= getSaldoGrupoHojas("6.1");
+        double gastoAdmin       = getSaldoGrupoNormal("6.2", NaturalezaCuenta.DEUDORA);
+        double gastoVenta       = getSaldoGrupoNormal("6.3", NaturalezaCuenta.DEUDORA);
+        double gastosFinancieros= getSaldoGrupoNormal("6.1", NaturalezaCuenta.DEUDORA);
         double totalGastoOper   = redondear(gastoAdmin + gastoVenta + gastosFinancieros);
         double utilidadOpera    = redondear(utilidadBruta - totalGastoOper);
+
+        filasExportacion = new java.util.ArrayList<>();
+        agregarSeccionExportacion("5 Ventas");
+        agregarDetalleExportacion("Ventas totales", ventasTotales);
+        agregarDetalleExportacion("(-) Dev sobre ventas", devVentas);
+        agregarTotalExportacion("Ventas netas", ventasNetas, false);
+        agregarSeccionExportacion("4 Costos");
+        agregarDetalleExportacion("Inventario inicial", inventarioInicial);
+        agregarDetalleExportacion("(+) Compras", compras);
+        agregarDetalleExportacion("(+) Gasto de compra", gastoDeCompra);
+        agregarDetalleExportacion("Compras totales", comprasTotales);
+        agregarDetalleExportacion("(-) Dev sobre compras", devCompras);
+        agregarDetalleExportacion("Compras netas", comprasNetas);
+        agregarDetalleExportacion("Mercancía disponible", mercDisponible);
+        agregarDetalleExportacion("(-) Inventario final", inventarioFinal);
+        agregarTotalExportacion("Costo ventas", costoVentas, false);
+        agregarTotalExportacion("Utilidad bruta", utilidadBruta, false);
+        agregarSeccionExportacion("Gasto operación");
+        agregarDetalleExportacion("Gasto administrativo", gastoAdmin);
+        agregarDetalleExportacion("Gasto ventas", gastoVenta);
+        agregarDetalleExportacion("Gastos financieros", gastosFinancieros);
+        agregarTotalExportacion("Total Gasto operación", totalGastoOper, false);
+        agregarTotalExportacion("Utilidad operacional", utilidadOpera, true);
 
         // ── Construir la tabla fila a fila ────────────────────────────
         VBox tabla = new VBox(0);
@@ -148,6 +166,18 @@ public class EstadoResultadosView extends ScrollPane {
         tabla.getChildren().add(filaTotal  ("Utilidad operacional",  utilidadOpera,         true,  true));
 
         mainContainer.getChildren().addAll(topBar, tabla);
+    }
+
+    private void agregarSeccionExportacion(String texto) {
+        filasExportacion.add(new ExportacionService.FilaEstadoResultados(texto, null, null, true, false));
+    }
+
+    private void agregarDetalleExportacion(String texto, double monto) {
+        filasExportacion.add(new ExportacionService.FilaEstadoResultados(texto, monto, null, false, false));
+    }
+
+    private void agregarTotalExportacion(String texto, double monto, boolean resaltada) {
+        filasExportacion.add(new ExportacionService.FilaEstadoResultados(texto, null, monto, false, resaltada));
     }
 
     // ── Fábrica de filas ──────────────────────────────────────────────
@@ -254,23 +284,16 @@ public class EstadoResultadosView extends ScrollPane {
 
     // ── Utilidades ────────────────────────────────────────────────────
 
-    /** Obtiene el saldo neto de una cuenta directamente del Mayor */
-    private double getSaldoNeto(String codigo) {
-        List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
-        for (MayorCuenta m : cuentas) {
-            if (m.getCodigo().equals(codigo)) {
-                return m.getSaldoNeto();
-            }
-        }
-        return 0.0;
-    }
-
-    /** Suma cuentas hoja para que un grupo padre sin movimientos directos no resulte en cero. */
-    private double getSaldoGrupoHojas(String prefijo) {
-        return mayorizacionService.obtenerMayorizacion(true).stream()
-                .filter(MayorCuenta::isPermiteMovimiento)
-                .filter(m -> m.getCodigo().startsWith(prefijo))
-                .mapToDouble(m -> Math.abs(m.getSaldoNeto()))
+    /** Suma saldos por naturaleza normal dentro del grupo, incluidos padres con movimientos directos. */
+    private double getSaldoGrupoNormal(String prefijo, NaturalezaCuenta naturalezaNormal) {
+        return cuentasMayorizadas.stream()
+                // El mayor conserva los movimientos por cuenta, no consolida las
+                // cuentas padre. Por eso se incluyen solo cuentas con movimientos
+                // propios: la cuenta padre no duplica el saldo de sus subcuentas.
+                .filter(m -> m.getTotalDebe() != 0 || m.getTotalHaber() != 0)
+                .filter(m -> m.getCodigo().equals(prefijo) || m.getCodigo().startsWith(prefijo + "."))
+                .mapToDouble(m -> m.getNaturaleza() == naturalezaNormal
+                        ? m.getSaldoNeto() : -m.getSaldoNeto())
                 .sum();
     }
 
@@ -278,6 +301,29 @@ public class EstadoResultadosView extends ScrollPane {
         return java.math.BigDecimal.valueOf(val)
                 .setScale(2, java.math.RoundingMode.HALF_UP)
                 .doubleValue();
+    }
+
+    private void exportarPDF() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Exportar Estado de Resultados a PDF");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documento PDF (*.pdf)", "*.pdf"));
+        fc.setInitialFileName("Estado_Resultados_" + LocalDate.now() + ".pdf");
+        File dest = fc.showSaveDialog(getScene().getWindow());
+        if (dest == null) return;
+        try {
+            java.util.List<String> rows = new java.util.ArrayList<>();
+            rows.add("Concepto | Detalle | Total");
+            for (ExportacionService.FilaEstadoResultados fila : filasExportacion) {
+                if (fila.isSeccion()) rows.add(fila.getConcepto());
+                else rows.add(fila.getConcepto()+" | "+(fila.getDetalle() == null ? "" : MONEDA.format(fila.getDetalle()))+" | "+(fila.getTotal() == null ? "" : MONEDA.format(fila.getTotal())));
+            }
+            rows.add("");
+            rows.add("Nota: Estado preparado con base en el libro diario y la valuación de inventario por método PEPS.");
+            rows.add("");
+            rows.add("FIRMAS:");
+            dest = ExportacionService.exportarPDF(ExportacionService.obtenerNombreEmpresa(), "Estado de Resultados", rows, dest);
+            ExportMenuFactory.ofrecerAbrir(dest, "PDF");
+        } catch (Exception ex) { new Alert(Alert.AlertType.ERROR, "Error: " + ex.getMessage()).showAndWait(); }
     }
 
     private void exportarHTML() {
@@ -288,7 +334,7 @@ public class EstadoResultadosView extends ScrollPane {
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarEstadoResultadosHTML(estadoActual, "Empresa Práctica S.A. de C.V.", dest);
+                ExportacionService.exportarEstadoResultadosHTML(estadoActual, ExportacionService.obtenerNombreEmpresa(), dest);
                 Alert a = new Alert(Alert.AlertType.INFORMATION,
                         "Reporte formal generado. ¿Desea abrirlo en el navegador?",
                         ButtonType.YES, ButtonType.NO);
@@ -312,14 +358,14 @@ public class EstadoResultadosView extends ScrollPane {
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarEstadoResultadosExcel(estadoActual, "Empresa Práctica S.A. de C.V.", dest);
+                File archivo = ExportacionService.exportarEstadoResultadosExcel(ExportacionService.obtenerNombreEmpresa(), filasExportacion, dest);
                 Alert a = new Alert(Alert.AlertType.INFORMATION,
                         "Libro de Excel generado. ¿Desea abrirlo ahora?",
                         ButtonType.YES, ButtonType.NO);
                 a.setTitle("Exportación a Excel Exitosa");
                 a.showAndWait().ifPresent(resp -> {
                     if (resp == ButtonType.YES && Desktop.isDesktopSupported()) {
-                        try { Desktop.getDesktop().open(dest); } catch (Exception ignored) {}
+                        try { Desktop.getDesktop().open(archivo); } catch (Exception ignored) {}
                     }
                 });
             } catch (Exception ex) {

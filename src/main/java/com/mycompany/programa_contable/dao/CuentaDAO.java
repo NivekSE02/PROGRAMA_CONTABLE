@@ -86,6 +86,25 @@ public class CuentaDAO {
         String sql = "INSERT INTO cuentas (codigo, nombre, tipo, subtipo, nivel, naturaleza, cuenta_padre, permite_movimiento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (c.getCuentaPadre() == null || !c.getCodigo().startsWith(c.getCuentaPadre() + ".")
+                    || c.getSubtipo() == null || c.getSubtipo().isBlank()) return false;
+            String segmentoCodigo = c.getCodigo().substring((c.getCuentaPadre() + ".").length());
+            if (segmentoCodigo.isEmpty() || segmentoCodigo.contains(".") || !segmentoCodigo.matches("\\d+")) return false;
+            try (PreparedStatement parentQuery = conn.prepareStatement(
+                    "SELECT tipo, nivel, permite_movimiento FROM cuentas WHERE codigo = ?")) {
+                parentQuery.setString(1, c.getCuentaPadre());
+                try (ResultSet parent = parentQuery.executeQuery()) {
+                    if (!parent.next() || parent.getInt("permite_movimiento") == 1
+                            || c.getNivel() != parent.getInt("nivel") + 1) return false;
+                    TipoCuenta tipoPadre;
+                    try {
+                        tipoPadre = TipoCuenta.valueOf(parent.getString("tipo"));
+                    } catch (IllegalArgumentException ex) {
+                        tipoPadre = TipoCuenta.desdeCodigo(c.getCuentaPadre());
+                    }
+                    if (tipoPadre != c.getTipo()) return false;
+                }
+            }
             ps.setString(1, c.getCodigo());
             ps.setString(2, c.getNombre());
             ps.setString(3, c.getTipo().name());
@@ -136,8 +155,22 @@ public class CuentaDAO {
         return false;
     }
 
+    public boolean tieneSubcuentas(String codigo) {
+        String sql = "SELECT COUNT(*) FROM cuentas WHERE cuenta_padre = ?";
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, codigo);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            System.err.println("[CuentaDAO] Error verificando subcuentas: " + e.getMessage());
+            return true;
+        }
+    }
+
     public boolean eliminar(String codigo) {
-        if (tieneMovimientos(codigo)) {
+        if (tieneMovimientos(codigo) || tieneSubcuentas(codigo)) {
             return false;
         }
         String sql = "DELETE FROM cuentas WHERE codigo = ?";

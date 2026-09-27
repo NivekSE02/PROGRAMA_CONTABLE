@@ -12,7 +12,7 @@ public class PartidaDobleTest {
     @Test
     @DisplayName("Debe aceptar un asiento cuando Suma(Debe) == Suma(Haber)")
     void testAsientoCuadradoValido() {
-        Asiento asiento = new Asiento(1, "2026-09-01", "Aporte inicial de socios", 1);
+        Asiento asiento = new Asiento(1, "2026-09-01", "Aporte inicial de socios");
         asiento.agregarDetalle(new DetalleAsiento(1, "110103", "Bancos", "Depósito", 10000.0, 0.0));
         asiento.agregarDetalle(new DetalleAsiento(2, "310101", "Capital Social", "Aportación", 0.0, 10000.0));
 
@@ -23,7 +23,7 @@ public class PartidaDobleTest {
     @Test
     @DisplayName("Debe rechazar un asiento cuando Suma(Debe) != Suma(Haber)")
     void testAsientoDescuadradoInvalido() {
-        Asiento asiento = new Asiento(2, "2026-09-02", "Compra descuadrada", 1);
+        Asiento asiento = new Asiento(2, "2026-09-02", "Compra descuadrada");
         asiento.agregarDetalle(new DetalleAsiento(1, "110501", "Inventario", "Compra", 500.0, 0.0));
         asiento.agregarDetalle(new DetalleAsiento(2, "110103", "Bancos", "Pago", 0.0, 450.0)); // Descuadrado por $50
 
@@ -34,10 +34,10 @@ public class PartidaDobleTest {
     @Test
     @DisplayName("Debe rechazar un asiento con un solo renglón o totales en cero")
     void testAsientoVacioOIncompleto() {
-        Asiento vacio = new Asiento(3, "2026-09-03", "Asiento vacío", 1);
+        Asiento vacio = new Asiento(3, "2026-09-03", "Asiento vacío");
         assertFalse(vacio.isPartidaDobleValida(), "Un asiento sin detalles debe ser rechazado.");
 
-        Asiento unRenglon = new Asiento(4, "2026-09-04", "Solo un renglón", 1);
+        Asiento unRenglon = new Asiento(4, "2026-09-04", "Solo un renglón");
         unRenglon.agregarDetalle(new DetalleAsiento(1, "110101", "Caja", "Ingreso", 100.0, 0.0));
         assertFalse(unRenglon.isPartidaDobleValida(), "Un asiento con un solo renglón debe ser rechazado.");
     }

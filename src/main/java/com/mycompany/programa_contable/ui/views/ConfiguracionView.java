@@ -12,14 +12,21 @@ import java.sql.*;
 
 public class ConfiguracionView extends ScrollPane {
 
+    private final Runnable onDatabaseRestored;
     private VBox mainContainer;
     private TextField txtNombreProducto;
     private TextField txtCostoCompra;
     private TextField txtPrecioVenta;
     private TextField txtTasaIva;
     private ComboBox<String> cmbRegimenIva;
+    private TextField txtNombreEmpresa;
 
     public ConfiguracionView() {
+        this(null);
+    }
+
+    public ConfiguracionView(Runnable onDatabaseRestored) {
+        this.onDatabaseRestored = onDatabaseRestored;
         setFitToWidth(true);
         getStyleClass().add("scroll-pane");
         setStyle("-fx-background-color: #f8fafc; -fx-background: #f8fafc;");
@@ -62,6 +69,23 @@ public class ConfiguracionView extends ScrollPane {
         Label lblSub = new Label("Parámetros del producto y tasa de IVA para los próximos asientos");
         lblSub.setStyle("-fx-font-size: 14px; -fx-text-fill: #64748b;");
         titleBox.getChildren().addAll(lblTitulo, lblSub);
+
+        VBox cardEmpresa = new VBox(12);
+        cardEmpresa.getStyleClass().add("card");
+        cardEmpresa.setMaxWidth(640);
+        cardEmpresa.setPadding(new Insets(24));
+        Label lblEmpresa = new Label("Identidad de la empresa");
+        lblEmpresa.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblNombreEmpresa = new Label("Nombre que aparecerá en los reportes exportados");
+        lblNombreEmpresa.getStyleClass().add("form-label");
+        ConfiguracionDAO configuracionDAO = new ConfiguracionDAO();
+        String nombreEmpresa = configuracionDAO.obtenerNombreEmpresa();
+        txtNombreEmpresa = new TextField("Empresa".equals(nombreEmpresa) ? "" : nombreEmpresa);
+        txtNombreEmpresa.setPromptText("Ej. Comercial del Centro, S.A.");
+        Button btnGuardarEmpresa = new Button("Guardar nombre");
+        btnGuardarEmpresa.getStyleClass().add("btn-primary");
+        btnGuardarEmpresa.setOnAction(e -> guardarNombreEmpresa());
+        cardEmpresa.getChildren().addAll(lblEmpresa, new Separator(), lblNombreEmpresa, txtNombreEmpresa, btnGuardarEmpresa);
 
         VBox cardForm = new VBox(20);
         cardForm.getStyleClass().add("card");
@@ -169,8 +193,7 @@ public class ConfiguracionView extends ScrollPane {
         cardBackup.setPadding(new Insets(24));
         Label lblBackupTitle = new Label("Respaldo de datos");
         lblBackupTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
-        Label lblBackupInfo = new Label("Motor activo: " + DatabaseManager.getInstance().getMotorActivo().getEtiqueta()
-                + ". El respaldo incluye registros contables, catálogo, configuración y plantillas.");
+        Label lblBackupInfo = new Label("El respaldo incluye registros contables, catálogo, configuración y plantillas.");
         lblBackupInfo.setWrapText(true);
         lblBackupInfo.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
         HBox backupActions = new HBox(10);
@@ -182,7 +205,58 @@ public class ConfiguracionView extends ScrollPane {
         btnImportarBackup.setOnAction(e -> importarBackup());
         backupActions.getChildren().addAll(btnExportarBackup, btnImportarBackup);
         cardBackup.getChildren().addAll(lblBackupTitle, new Separator(), lblBackupInfo, backupActions);
-        mainContainer.getChildren().addAll(titleBox, cardForm, cardBackup);
+
+        VBox cardDatabase = new VBox(14);
+        cardDatabase.getStyleClass().add("card");
+        cardDatabase.setMaxWidth(640);
+        cardDatabase.setPadding(new Insets(24));
+        Label lblDatabaseTitle = new Label("Restaurar datos iniciales");
+        lblDatabaseTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
+        Label lblDatabaseInfo = new Label("Reemplaza la información actual por los datos originales de demostración.");
+        lblDatabaseInfo.setWrapText(true);
+        lblDatabaseInfo.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        Button btnRestaurarBase = new Button("Restaurar base de datos");
+        btnRestaurarBase.getStyleClass().add("btn-secondary");
+        btnRestaurarBase.setOnAction(e -> confirmarRestauracionBase());
+        cardDatabase.getChildren().addAll(lblDatabaseTitle, new Separator(), lblDatabaseInfo, btnRestaurarBase);
+
+        VBox creditos = new VBox(4);
+        creditos.setMaxWidth(640);
+        creditos.setPadding(new Insets(12, 0, 4, 0));
+        Label lblHechoPor = new Label("Hecho por:");
+        lblHechoPor.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: #64748b;");
+        Label lblAutores = new Label("Javier Martinez\nKevin Salazar");
+        lblAutores.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+        creditos.getChildren().addAll(lblHechoPor, lblAutores);
+
+        mainContainer.getChildren().addAll(titleBox, cardEmpresa, cardForm, cardBackup, cardDatabase, creditos);
+    }
+
+    private void guardarNombreEmpresa() {
+        try {
+            new ConfiguracionDAO().guardarNombreEmpresa(txtNombreEmpresa.getText());
+            new Alert(Alert.AlertType.INFORMATION, "El nombre se guardó y se aplicará en las próximas exportaciones.", ButtonType.OK).showAndWait();
+        } catch (Exception ex) {
+            new Alert(Alert.AlertType.ERROR, "No se pudo guardar el nombre: " + ex.getMessage(), ButtonType.OK).showAndWait();
+        }
+    }
+
+    private void confirmarRestauracionBase() {
+        Alert confirm = new Alert(
+                Alert.AlertType.CONFIRMATION,
+                "Esta acción reemplazará los datos actuales por los valores originales de demostración. ¿Desea continuar?",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setTitle("Restaurar base de datos");
+        confirm.setHeaderText(null);
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.YES) {
+                DatabaseManager.getInstance().resetDatabase();
+                cargarUI();
+                if (onDatabaseRestored != null) onDatabaseRestored.run();
+                new Alert(Alert.AlertType.INFORMATION,
+                        "Base de datos restaurada exitosamente.", ButtonType.OK).showAndWait();
+            }
+        });
     }
 
     private void exportarBackup() {

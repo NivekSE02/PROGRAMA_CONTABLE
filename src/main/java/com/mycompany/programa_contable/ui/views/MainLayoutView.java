@@ -1,14 +1,10 @@
 package com.mycompany.programa_contable.ui.views;
 
-import com.mycompany.programa_contable.db.DatabaseManager;
 import javafx.animation.FadeTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
@@ -45,7 +41,7 @@ public class MainLayoutView extends BorderPane {
         estadoResultadosView = new EstadoResultadosView();
         catalogoView        = new CatalogoCuentasView();
         kardexView          = new KardexView();
-        configuracionView   = new ConfiguracionView();
+        configuracionView   = new ConfiguracionView(this::actualizarTodasLasVistas);
 
         // ── TOPBAR — Marca y utilidades ────────────────────────────────────────
         VBox topHeader = new VBox(0);
@@ -67,26 +63,6 @@ public class MainLayoutView extends BorderPane {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         // Botón de demostración
-        Button btnResetDemo = new Button("Datos Demo");
-        btnResetDemo.getStyleClass().add("btn-secondary");
-        btnResetDemo.setOnAction(e -> {
-            Alert confirm = new Alert(
-                Alert.AlertType.CONFIRMATION,
-                "¿Desea restablecer la base de datos a los valores de demostración originales?",
-                ButtonType.YES, ButtonType.NO
-            );
-            confirm.setTitle("Restablecer Datos de Demostración");
-            confirm.showAndWait().ifPresent(resp -> {
-                if (resp == ButtonType.YES) {
-                    DatabaseManager.getInstance().resetDatabase();
-                    actualizarTodasLasVistas();
-                    Alert a = new Alert(Alert.AlertType.INFORMATION,
-                        "Base de datos restablecida exitosamente.", ButtonType.OK);
-                    a.showAndWait();
-                }
-            });
-        });
-
         Button btnMinimizar = new Button("—");
         Button btnMaximizar = new Button("□");
         Button btnCerrar = new Button("×");
@@ -122,7 +98,7 @@ public class MainLayoutView extends BorderPane {
         HBox controlesVentana = new HBox(2, btnMinimizar, btnMaximizar, btnCerrar);
         controlesVentana.setAlignment(Pos.CENTER);
 
-        topbar.getChildren().addAll(logo, spacer, btnResetDemo, controlesVentana);
+        topbar.getChildren().addAll(logo, spacer, controlesVentana);
         final double[] posicionVentana = new double[2];
         topbar.setOnMousePressed(e -> {
             if (e.getTarget() instanceof Button) return;

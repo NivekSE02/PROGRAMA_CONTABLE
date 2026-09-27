@@ -4,6 +4,8 @@ import com.mycompany.programa_contable.model.BalanceGeneralDTO;
 import com.mycompany.programa_contable.model.BalanzaComprobacionDTO;
 import com.mycompany.programa_contable.model.EstadoResultadosDTO;
 import com.mycompany.programa_contable.model.MayorCuenta;
+import com.mycompany.programa_contable.model.NaturalezaCuenta;
+import com.mycompany.programa_contable.model.TipoCuenta;
 import java.util.List;
 
 public class ReportesFinancierosService {
@@ -23,45 +25,54 @@ public class ReportesFinancierosService {
         
         KardexService kardexService = new KardexService();
         double costoVentasKardex = kardexService.obtenerCostoDeVentasTotal();
-
         List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
+        double costoVentasPeriodo = costoVentasKardex;
 
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
             
-            // Solo cuentas que aceptan movimientos directos (cuentas hoja) para evitar doble conteo
-            if (!m.isPermiteMovimiento()) continue;
+            // Considerar cualquier cuenta con movimientos propios. El mayor no hace
+            // roll-up, así que una cuenta padre usada en asientos no se duplica con
+            // sus hijas y no debe desaparecer del estado de resultados.
+            if ((m.getTotalDebe() == 0 && m.getTotalHaber() == 0) && !cod.equals("5.2")) continue;
             double saldoNeto = m.getSaldoNeto();
-            // El costo de ventas proviene del Kárdex
+            // En el sistema periódico, el costo es inventario inicial + compras
+            // netas - inventario final. Se comparte la misma fórmula de la vista.
             if (cod.equals("5.2")) {
-                saldoNeto = costoVentasKardex; 
+                saldoNeto = costoVentasPeriodo;
             }
 
-            double montoFinal = Math.abs(saldoNeto);
-
-            if (montoFinal == 0) continue;
-
-            // Ingresos (grupo 4)
-            if (cod.equals("4.2")) {
-                estado.agregarDevolucionVenta(m.getCodigo(), m.getNombre(), montoFinal);
-            } else if (cod.startsWith("4")) {
-                estado.agregarIngreso(m.getCodigo(), m.getNombre(), montoFinal, true);
-            } 
-            // Costos (grupo 5, excluyendo 5.4 para evitar duplicidad con compras)
-            else if (cod.startsWith("5") && !cod.equals("5.4")) {
-                // El costo de ventas procede del Kárdex. Una devolución sobre
-                // compras ya redujo el inventario y no debe restarse otra vez.
-                if (!cod.equals("5.1")) {
+            String subtipo = m.getSubtipo() == null ? "" : m.getSubtipo().trim().toUpperCase(java.util.Locale.ROOT);
+            if (cod.startsWith("4")) {
+                NaturalezaCuenta naturalezaNormal = cod.equals("4.2") || subtipo.equals("RESTA A INGRESOS")
+                        ? NaturalezaCuenta.DEUDORA : NaturalezaCuenta.ACREEDORA;
+                double montoFinal = saldoSegunNaturaleza(saldoNeto, m.getNaturaleza(), naturalezaNormal);
+                if (montoFinal == 0) continue;
+                if (cod.equals("4.2") || subtipo.equals("RESTA A INGRESOS")) {
+                    estado.agregarDevolucionVenta(m.getCodigo(), m.getNombre(), montoFinal);
+                } else {
+                    estado.agregarIngreso(m.getCodigo(), m.getNombre(), montoFinal,
+                            !subtipo.equals("OTROS INGRESOS"));
+                }
+            } else if (cod.startsWith("5")) {
+                boolean esCuentaCompras = cod.equals("5.4") || cod.startsWith("5.4.");
+                boolean esCuentaNoOperativa = subtipo.equals("RESTA A COSTOS")
+                        || subtipo.equals("CUENTA TRANSITORIA");
+                if (!esCuentaCompras && !esCuentaNoOperativa && !cod.equals("5.1")) {
+                    double montoFinal = cod.equals("5.2")
+                            ? costoVentasPeriodo
+                            : saldoSegunNaturaleza(saldoNeto, m.getNaturaleza(), NaturalezaCuenta.DEUDORA);
+                    if (montoFinal == 0) continue;
                     estado.agregarCosto(m.getCodigo(), m.getNombre(), montoFinal);
                 }
-            } 
-            // Gastos (grupo 6)
-            else if (cod.startsWith("6")) {
-                if (cod.startsWith("6.1")) {
+            } else if (cod.startsWith("6")) {
+                double montoFinal = saldoSegunNaturaleza(saldoNeto, m.getNaturaleza(), NaturalezaCuenta.DEUDORA);
+                if (montoFinal == 0) continue;
+                if (subtipo.equals("GASTOS FINANCIEROS") || esSubcuentaDe(cod, "6.1")) {
                     estado.agregarGastoFinanciero(m.getCodigo(), m.getNombre(), montoFinal);
-                } else if (cod.startsWith("6.2")) {
+                } else if (subtipo.equals("GASTOS DE ADMINISTRACIÓN") || esSubcuentaDe(cod, "6.2")) {
                     estado.agregarGastoAdministracion(m.getCodigo(), m.getNombre(), montoFinal);
-                } else if (cod.startsWith("6.3")) {
+                } else if (subtipo.equals("GASTOS DE VENTA") || esSubcuentaDe(cod, "6.3")) {
                     estado.agregarGastoVenta(m.getCodigo(), m.getNombre(), montoFinal);
                 }
             }
@@ -71,28 +82,17 @@ public class ReportesFinancierosService {
         return estado;
     }
 
-    private double obtenerSaldoGrupo(String prefijo) {
-        double total = 0.0;
-        List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
-        for (MayorCuenta m : cuentas) {
-            String cod = m.getCodigo();
-            // Solo cuentas hoja (permiten movimiento) para no duplicar con cuentas padre
-            if (!m.isPermiteMovimiento()) continue;
-            if (!cod.startsWith(prefijo)) continue;
-            // Si es el grupo 5, omitimos la cuenta 5.4 para que no duplique compras
-            if (prefijo.equals("5") && cod.equals("5.4")) {
-                continue;
-            }
-            double saldo = m.getSaldoNeto();
-            total += Math.abs(saldo);
-        }
-        return total;
+    private boolean esSubcuentaDe(String codigo, String codigoGrupo) {
+        return codigo.equals(codigoGrupo) || codigo.startsWith(codigoGrupo + ".");
     }
-    
+
+    private double saldoSegunNaturaleza(double saldo, NaturalezaCuenta naturalezaCuenta,
+            NaturalezaCuenta naturalezaNormal) {
+        return naturalezaCuenta == naturalezaNormal ? saldo : -saldo;
+    }
+
     public BalanceGeneralDTO generarBalanceGeneral() {
         BalanceGeneralDTO balance = new BalanceGeneralDTO();
-        
-        KardexService kardexService = new KardexService();
         
         // Utilidad Neta real basada en la Balanza de Comprobación
         // Reutilizamos el criterio del Estado de Resultados para no sumar las
@@ -100,16 +100,16 @@ public class ReportesFinancierosService {
         double utilidadNeta = generarEstadoResultados().getUtilidadNeta();
 
         List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
+        double inventarioFinalContable = new KardexService().obtenerInventarioFinal(1);
 
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
 
-            // Solo cuentas que aceptan movimientos directos (cuentas hoja) para evitar doble conteo
-            if (!m.isPermiteMovimiento()) continue;
+            // El mayor contiene movimientos propios, sin roll-up. Incluir cuentas
+            // padre cuando un asiento se registró directamente en ellas.
+            if (m.getTotalDebe() == 0 && m.getTotalHaber() == 0 && !cod.equals("1.2")) continue;
 
             double saldoNeto = m.getSaldoNeto();
-
-            if (saldoNeto == 0) continue;
 
             // Activo (grupo 1)
             if (cod.startsWith("1")) {
@@ -117,43 +117,39 @@ public class ReportesFinancierosService {
                 String subtipo = m.getSubtipo() != null ? m.getSubtipo() : "";
                 boolean esCorriente = !subtipo.contains("NO CORRIENTE");
                 // El inventario perpetuo se controla en Kárdex. La cuenta 1.2
-                // contiene el asiento de apertura y no representa el saldo final.
+                // contiene el asiento de apertura. Reconstruimos el saldo final
+                // con importes del mayor y el costo de las salidas de venta para
+                // no arrastrar valores de Kárdex guardados con redondeos antiguos.
                 if (cod.equals("1.2")) {
-                    saldoNeto = kardexService.obtenerInventarioFinal(1);
+                    saldoNeto = inventarioFinalContable;
                 }
-                balance.agregarActivo(m.getCodigo(), m.getNombre(), saldoNeto, esCorriente);
+                if (saldoNeto == 0) continue;
+                double saldoPresentado = m.getNaturaleza() == TipoCuenta.ACTIVO.getNaturalezaPorDefecto()
+                        ? saldoNeto : -Math.abs(saldoNeto);
+                balance.agregarActivo(m.getCodigo(), m.getNombre(), saldoPresentado, esCorriente);
             }
             // Pasivo (grupo 2)
             else if (cod.startsWith("2")) {
+                if (saldoNeto == 0) continue;
                 // Clasificar corriente usando subtipo; "CORRIENTE" cubre tanto corriente como corriente/no corriente
                 String subtipo = m.getSubtipo() != null ? m.getSubtipo() : "PASIVO CORRIENTE";
-                boolean esCorriente = subtipo.contains("CORRIENTE");
-                balance.agregarPasivo(m.getCodigo(), m.getNombre(), saldoNeto, esCorriente);
+                boolean esCorriente = !subtipo.contains("NO CORRIENTE")
+                        || subtipo.contains("CORRIENTE / NO CORRIENTE");
+                double saldoPresentado = m.getNaturaleza() == TipoCuenta.PASIVO.getNaturalezaPorDefecto()
+                        ? saldoNeto : -Math.abs(saldoNeto);
+                balance.agregarPasivo(m.getCodigo(), m.getNombre(), saldoPresentado, esCorriente);
             } 
             // Capital (grupo 3)
             else if (cod.startsWith("3")) {
-                balance.agregarCapital(m.getCodigo(), m.getNombre(), saldoNeto);
+                if (saldoNeto == 0) continue;
+                double saldoPresentado = m.getNaturaleza() == TipoCuenta.PATRIMONIO.getNaturalezaPorDefecto()
+                        ? saldoNeto : -Math.abs(saldoNeto);
+                balance.agregarCapital(m.getCodigo(), m.getNombre(), saldoPresentado);
             }
         }
 
         balance.calcularTotales(utilidadNeta);
         return balance;
-    }
-
-    private double obtenerSaldoGrupoCostosSinCompras() {
-        // Obtenemos específicamente el costo de ventas real del kárdex en lugar de sumar la cuenta 5.4
-        KardexService kardexService = new KardexService();
-        double costoVentasKardex = kardexService.obtenerCostoDeVentasTotal();
-        
-        double totalOtrasCuentasCostos = 0.0;
-        List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
-        for (MayorCuenta m : cuentas) {
-            String cod = m.getCodigo();
-            if (cod.startsWith("5") && m.isPermiteMovimiento() && !cod.equals("5.2") && !cod.equals("5.4")) {
-                totalOtrasCuentasCostos += Math.abs(m.getSaldoNeto());
-            }
-        }
-        return costoVentasKardex + totalOtrasCuentasCostos;
     }
 
     private double redondear(double val) {

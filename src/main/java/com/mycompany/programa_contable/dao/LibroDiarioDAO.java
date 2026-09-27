@@ -10,7 +10,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class LibroDiarioDAO {
 
@@ -39,16 +42,20 @@ public class LibroDiarioDAO {
         );
 
         if (fechaDesde != null && !fechaDesde.isEmpty()) {
-            sb.append("AND a.fecha >= '").append(fechaDesde).append("' ");
+            sb.append("AND a.fecha >= ? ");
         }
         if (fechaHasta != null && !fechaHasta.isEmpty()) {
-            sb.append("AND a.fecha <= '").append(fechaHasta).append("' ");
+            sb.append("AND a.fecha <= ? ");
         }
-        sb.append("ORDER BY a.numero DESC");
+        sb.append("ORDER BY a.fecha DESC, a.numero DESC");
 
         try (Connection conn = dbManager.getConnection();
-             Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery(sb.toString())) {
+             PreparedStatement ps = conn.prepareStatement(sb.toString())) {
+            int parametro = 1;
+            if (fechaDesde != null && !fechaDesde.isEmpty()) ps.setString(parametro++, fechaDesde);
+            if (fechaHasta != null && !fechaHasta.isEmpty()) ps.setString(parametro, fechaHasta);
+
+            try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 Asiento as = new Asiento();
                 as.setId(rs.getInt("id"));
@@ -58,13 +65,49 @@ public class LibroDiarioDAO {
                 as.setTotalDebe(rs.getDouble("total_debe"));
                 as.setTotalHaber(rs.getDouble("total_haber"));
                 as.setCreatedAt(rs.getString("created_at"));
-                as.setDetalles(cargarDetalles(conn, as.getId()));
                 lista.add(as);
             }
+            }
+            cargarDetallesLote(conn, lista);
         } catch (SQLException e) {
             System.err.println("[LibroDiarioDAO] Error listando asientos: " + e.getMessage());
         }
         return lista;
+    }
+
+    private void cargarDetallesLote(Connection conn, List<Asiento> asientos) throws SQLException {
+        final int tamanoLote = 500;
+        for (int inicio = 0; inicio < asientos.size(); inicio += tamanoLote) {
+            int fin = Math.min(inicio + tamanoLote, asientos.size());
+            List<Asiento> lote = asientos.subList(inicio, fin);
+            Map<Integer, Asiento> porId = new HashMap<>();
+            for (Asiento asiento : lote) porId.put(asiento.getId(), asiento);
+
+            String marcadores = String.join(",", Collections.nCopies(lote.size(), "?"));
+            String sql = "SELECT d.id, d.asiento_id, d.renglon, d.cuenta_codigo, c.nombre AS cuenta_nombre, "
+                    + "d.concepto_linea, d.debe, d.haber FROM detalle_asiento d "
+                    + "LEFT JOIN cuentas c ON d.cuenta_codigo = c.codigo "
+                    + "WHERE d.asiento_id IN (" + marcadores + ") ORDER BY d.asiento_id, d.renglon";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                for (int i = 0; i < lote.size(); i++) ps.setInt(i + 1, lote.get(i).getId());
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Asiento asiento = porId.get(rs.getInt("asiento_id"));
+                        if (asiento == null) continue;
+                        DetalleAsiento detalle = new DetalleAsiento();
+                        detalle.setId(rs.getInt("id"));
+                        detalle.setAsientoId(rs.getInt("asiento_id"));
+                        detalle.setRenglon(rs.getInt("renglon"));
+                        detalle.setCuentaCodigo(rs.getString("cuenta_codigo"));
+                        detalle.setCuentaNombre(rs.getString("cuenta_nombre"));
+                        detalle.setConceptoLinea(rs.getString("concepto_linea"));
+                        detalle.setDebe(rs.getDouble("debe"));
+                        detalle.setHaber(rs.getDouble("haber"));
+                        asiento.getDetalles().add(detalle);
+                    }
+                }
+            }
+        }
     }
 
     public List<DetalleAsiento> cargarDetalles(Connection conn, int asientoId) throws SQLException {
@@ -174,8 +217,10 @@ public class LibroDiarioDAO {
             for (DetalleAsiento det : asiento.getDetalles()) {
                 String cuenta = det.getCuentaCodigo();
 
-                // Inventario inicial: cuenta 1.2 en el asiento #1
-                boolean esInventarioInicial = ("1.2".equals(cuenta) || "1".equals(cuenta)) && asiento.getNumero() == 1;
+                // Una línea de la cuenta de inventario (1.2 o una subcuenta)
+                // con saldo deudor representa una entrada valorizada al kardex.
+                // La UI guarda el importe en 1.2 y la subcuenta solo como parcial.
+                boolean esInventarioInicial = esSubcuentaDe(cuenta, "1.2") && det.getDebe() > 0;
                 
                 if (esInventarioInicial) {
                     // Tomamos el valor del Debe si existe, o del Parcial si la cuenta principal agrupó el monto
@@ -186,50 +231,54 @@ public class LibroDiarioDAO {
                         } catch (Exception ignored) {}
                     }
 
-                    if (valorInventario > 0 && ("1.2".equals(cuenta) || (det.getConceptoLinea() != null && !det.getConceptoLinea().isEmpty()))) {
+                    if (valorInventario > 0) {
                         int cantidadInicial = (int) Math.round(valorInventario / costoDinamico);
                         if (cantidadInicial <= 0) cantidadInicial = 1;
                         
                         kardexService.registrarMovimientoConConexión(
-                            conn, 1, asiento.getFecha(), "ENTRADA", cantidadInicial, costoDinamico, asientoId
+                            conn, 1, asiento.getFecha(), "ENTRADA", cantidadInicial,
+                            valorInventario, false, asientoId
                         );
                         break; 
                     }
                 }
                 
                 // Compras: cuenta 5.4 al Debe
-                else if (("5.4".equals(cuenta) || cuenta.startsWith("5.4")) && det.getDebe() > 0) {
+                else if (esSubcuentaDe(cuenta, "5.4") && det.getDebe() > 0) {
                     int cantidadComprada = (int) Math.round(det.getDebe() / costoDinamico);
                     if (cantidadComprada <= 0) cantidadComprada = 1;
                     
                     kardexService.registrarMovimientoConConexión(
-                        conn, 1, asiento.getFecha(), "ENTRADA", cantidadComprada, costoDinamico, asientoId
+                        conn, 1, asiento.getFecha(), "ENTRADA", cantidadComprada,
+                        det.getDebe(), false, asientoId
                     );
                     break; 
                 }
                 
                 // Devolución sobre compras: la mercancía vuelve al proveedor.
-                else if ("5.1".equals(cuenta) && det.getHaber() > 0) {
+                else if (esSubcuentaDe(cuenta, "5.1") && det.getHaber() > 0) {
                     int cantidadDevuelta = (int) Math.round(det.getHaber() / costoDinamico);
                     if (cantidadDevuelta <= 0) cantidadDevuelta = 1;
                     kardexService.registrarMovimientoConConexión(
-                        conn, 1, asiento.getFecha(), "SALIDA", cantidadDevuelta, costoDinamico, asientoId
+                        conn, 1, asiento.getFecha(), "SALIDA", cantidadDevuelta,
+                        0, true, asientoId
                     );
                     break;
                 }
 
                 // Devolución sobre ventas: el cliente devuelve mercancía a bodega.
-                else if ("4.2".equals(cuenta) && det.getDebe() > 0) {
+                else if (esSubcuentaDe(cuenta, "4.2") && det.getDebe() > 0) {
                     int cantidadDevuelta = (int) Math.round(det.getDebe() / precioVentaDinamico);
                     if (cantidadDevuelta <= 0) cantidadDevuelta = 1;
                     kardexService.registrarMovimientoConConexión(
-                        conn, 1, asiento.getFecha(), "ENTRADA", cantidadDevuelta, costoDinamico, asientoId
+                        conn, 1, asiento.getFecha(), "ENTRADA", cantidadDevuelta,
+                        0, true, asientoId
                     );
                     break;
                 }
 
                 // Ventas reales: únicamente la cuenta 4.1 acreditada genera costo de venta.
-                else if ("4.1".equals(cuenta) && det.getHaber() > 0) {
+                else if (esSubcuentaDe(cuenta, "4.1") && det.getHaber() > 0) {
                     double montoVenta = det.getHaber();
                     if (montoVenta <= 0 && det.getConceptoLinea() != null) {
                         try {
@@ -244,7 +293,8 @@ public class LibroDiarioDAO {
                         }
                         
                         kardexService.registrarMovimientoConConexión(
-                            conn, 1, asiento.getFecha(), "SALIDA", unidadesVendidas, costoDinamico, asientoId
+                            conn, 1, asiento.getFecha(), "SALIDA", unidadesVendidas,
+                            0, true, asientoId
                         );
                         break; 
                     }
@@ -270,6 +320,10 @@ public class LibroDiarioDAO {
 
     private double redondear(double val) {
         return java.math.BigDecimal.valueOf(val).setScale(2, java.math.RoundingMode.HALF_UP).doubleValue();
+    }
+
+    private boolean esSubcuentaDe(String codigo, String codigoGrupo) {
+        return codigo.equals(codigoGrupo) || codigo.startsWith(codigoGrupo + ".");
     }
 
     public boolean eliminarAsiento(int id) {

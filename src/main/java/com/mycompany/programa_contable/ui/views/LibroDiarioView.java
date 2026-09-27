@@ -53,6 +53,9 @@ public class LibroDiarioView extends VBox {
     private TableView<Asiento> tblHistorial;
     private TableView<DetalleAsiento> tblDetalleHistorial;
     private ObservableList<Asiento> listaHistorial;
+    private DatePicker dpDesdeHistorial;
+    private DatePicker dpHastaHistorial;
+    private Label lblConteoHistorial;
 
     public LibroDiarioView() {
         setPadding(new Insets(24, 32, 32, 32));
@@ -378,6 +381,11 @@ public class LibroDiarioView extends VBox {
         root.setStyle("-fx-background-color: #ffffff;");
         VBox.setVgrow(root, Priority.ALWAYS);
 
+        dpDesdeHistorial = new DatePicker(LocalDate.now().minusMonths(1));
+        dpDesdeHistorial.setPrefWidth(150);
+        dpHastaHistorial = new DatePicker(LocalDate.now());
+        dpHastaHistorial.setPrefWidth(150);
+
         HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
@@ -389,18 +397,26 @@ public class LibroDiarioView extends VBox {
         titleBox.getChildren().addAll(lblHist, lblHistSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        MenuButton btnExportar = new MenuButton("Exportar");
+        MenuButton btnExportar = ExportMenuFactory.crear(this::exportarHistorialPDF, this::exportarHistorialExcel);
         btnExportar.setMinSize(160, 36);
-        btnExportar.getStyleClass().add("btn-secondary");
-        btnExportar.getStyleClass().add("export-button");
-        btnExportar.setStyle("-fx-text-fill: white;");
-        MenuItem mnuCsv = new MenuItem("Exportar a CSV");
-        mnuCsv.getStyleClass().add("export-menu-item");
-        mnuCsv.setOnAction(e -> exportarHistorialCSV());
-        MenuItem mnuExcel = new MenuItem("Exportar a Excel (.xlsx)");
-        mnuExcel.getStyleClass().add("export-menu-item");
-        mnuExcel.setOnAction(e -> exportarHistorialExcel());
-        btnExportar.getItems().addAll(mnuCsv, mnuExcel);
+
+        HBox barraFiltros = new HBox(10);
+        barraFiltros.setAlignment(Pos.CENTER_LEFT);
+        Label lblDesde = new Label("Desde:");
+        Label lblHasta = new Label("Hasta:");
+        Button btnFiltrarFechas = new Button("Filtrar fechas");
+        btnFiltrarFechas.getStyleClass().add("btn-primary");
+        btnFiltrarFechas.setOnAction(e -> recargarHistorial());
+        Button btnUltimoMes = new Button("Último mes");
+        btnUltimoMes.getStyleClass().add("btn-secondary");
+        btnUltimoMes.setOnAction(e -> {
+            establecerFiltroUltimoMes();
+            recargarHistorial();
+        });
+        lblConteoHistorial = new Label();
+        lblConteoHistorial.setStyle("-fx-text-fill: #64748b; -fx-padding: 0 0 0 8;");
+        barraFiltros.getChildren().addAll(lblDesde, dpDesdeHistorial, lblHasta, dpHastaHistorial,
+                btnFiltrarFechas, btnUltimoMes, lblConteoHistorial);
 
         Button btnRefrescar = new Button("Refrescar");
         btnRefrescar.setMinSize(110, 36);
@@ -509,8 +525,13 @@ public class LibroDiarioView extends VBox {
             }
         });
 
-        root.getChildren().addAll(topBar, tblHistorial, lblDet, tblDetalleHistorial);
+        root.getChildren().addAll(topBar, barraFiltros, tblHistorial, lblDet, tblDetalleHistorial);
         return root;
+    }
+
+    private void establecerFiltroUltimoMes() {
+        dpDesdeHistorial.setValue(LocalDate.now().minusMonths(1));
+        dpHastaHistorial.setValue(LocalDate.now());
     }
 
     private void actualizarCuadre() {
@@ -645,25 +666,40 @@ public class LibroDiarioView extends VBox {
     }
 
     public void recargarHistorial() {
-        List<Asiento> lista = libroDiarioDAO.listarAsientos("", "");
+        LocalDate desde = dpDesdeHistorial == null ? LocalDate.now().minusMonths(1) : dpDesdeHistorial.getValue();
+        LocalDate hasta = dpHastaHistorial == null ? LocalDate.now() : dpHastaHistorial.getValue();
+        if (desde != null && hasta != null && desde.isAfter(hasta)) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Rango de fechas inválido",
+                    "La fecha inicial no puede ser posterior a la fecha final.");
+            return;
+        }
+        List<Asiento> lista = libroDiarioDAO.listarAsientos(
+                desde == null ? "" : desde.toString(), hasta == null ? "" : hasta.toString());
         listaHistorial.setAll(lista);
+        if (lblConteoHistorial != null) {
+            lblConteoHistorial.setText("Asientos encontrados: " + lista.size());
+        }
         actualizarNumeroAsiento();
     }
 
-    private void exportarHistorialCSV() {
+    private void exportarHistorialPDF() {
         if (listaHistorial.isEmpty()) {
             mostrarAlerta(Alert.AlertType.WARNING, "Sin Datos", "No hay asientos registrados para exportar.");
             return;
         }
         FileChooser fc = new FileChooser();
-        fc.setTitle("Exportar Libro Diario a CSV");
-        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivo CSV (*.csv)", "*.csv"));
-        fc.setInitialFileName("Libro_Diario_" + LocalDate.now() + ".csv");
+        fc.setTitle("Exportar Libro Diario a PDF");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documento PDF (*.pdf)", "*.pdf"));
+        fc.setInitialFileName("Libro_Diario_" + LocalDate.now() + ".pdf");
         File file = fc.showSaveDialog(getScene().getWindow());
         if (file != null) {
             try {
-                ExportacionService.exportarLibroDiarioCSV(listaHistorial, file);
-                mostrarAlerta(Alert.AlertType.INFORMATION, "Exportación Exitosa", "Libro Diario exportado a: " + file.getAbsolutePath());
+                java.util.List<String> rows = new java.util.ArrayList<>();
+                rows.add("Asiento | Fecha | Descripción | Cuenta | Debe | Haber");
+                for (Asiento asiento : listaHistorial) for (DetalleAsiento detalle : asiento.getDetalles())
+                    rows.add(asiento.getNumero()+" | "+asiento.getFecha()+" | "+asiento.getConcepto()+" | "+detalle.getCuentaNombre()+" | $"+String.format(java.util.Locale.ROOT,"%.2f",detalle.getDebe())+" | $"+String.format(java.util.Locale.ROOT,"%.2f",detalle.getHaber()));
+                file = ExportacionService.exportarPDF(ExportacionService.obtenerNombreEmpresa(), "Libro Diario", rows, file);
+                ExportMenuFactory.ofrecerAbrir(file, "PDF");
             } catch (Exception ex) {
                 mostrarAlerta(Alert.AlertType.ERROR, "Error al Exportar", ex.getMessage());
             }
@@ -682,9 +718,8 @@ public class LibroDiarioView extends VBox {
         File dest = fc.showSaveDialog(getScene().getWindow());
         if (dest != null) {
             try {
-                ExportacionService.exportarLibroDiarioExcel(listaHistorial, dest);
-                Alert a = new Alert(Alert.AlertType.INFORMATION, "Libro Diario exportado a Excel correctamente.");
-                a.showAndWait();
+                dest = ExportacionService.exportarLibroDiarioExcel(listaHistorial, ExportacionService.obtenerNombreEmpresa(), dest);
+                ExportMenuFactory.ofrecerAbrir(dest, "Excel");
             } catch (Exception ex) {
                 Alert a = new Alert(Alert.AlertType.ERROR, "Error al exportar a Excel: " + ex.getMessage());
                 a.showAndWait();
