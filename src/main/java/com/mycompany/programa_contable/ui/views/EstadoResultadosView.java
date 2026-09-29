@@ -3,7 +3,6 @@ package com.mycompany.programa_contable.ui.views;
 import com.mycompany.programa_contable.model.EstadoResultadosDTO;
 import com.mycompany.programa_contable.model.NaturalezaCuenta;
 import com.mycompany.programa_contable.service.ExportacionService;
-import com.mycompany.programa_contable.service.KardexService;
 import com.mycompany.programa_contable.service.MayorizacionService;
 import com.mycompany.programa_contable.model.MayorCuenta;
 import com.mycompany.programa_contable.service.ReportesFinancierosService;
@@ -23,7 +22,6 @@ public class EstadoResultadosView extends ScrollPane {
 
     private final ReportesFinancierosService reportesService = new ReportesFinancierosService();
     private final MayorizacionService mayorizacionService = new MayorizacionService();
-    private final KardexService kardexService = new KardexService();
     private static final DecimalFormat MONEDA = new DecimalFormat("$#,##0.00");
 
     // Anchos de columnas (Concepto | Detalle | Total)
@@ -61,7 +59,7 @@ public class EstadoResultadosView extends ScrollPane {
         VBox titleBox = new VBox(3);
         Label lblTitulo = new Label("Estado de Resultados");
         lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
-        Label lblSub = new Label("Con Inventario Inicial y Final — Método PEPS");
+        Label lblSub = new Label("Con inventario inicial y final — Promedio ponderado móvil");
         lblSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
         titleBox.getChildren().addAll(lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
@@ -81,21 +79,21 @@ public class EstadoResultadosView extends ScrollPane {
         double ventasNetas      = redondear(ventasTotales - devVentas);
 
         // Inventario inicial (saldo contable de cuenta 1.2)
-        double inventarioInicial = getSaldoGrupoNormal("1.2", NaturalezaCuenta.DEUDORA);
+        double inventarioInicial = getInventarioInicialRegistrado();
 
         // Compras (5.4) y devoluciones sobre compras (5.1) y gastos de compra (si hay)
-        double compras          = getSaldoGrupoNormal("5.4", NaturalezaCuenta.DEUDORA);
+        double compras          = getMovimientoGrupo("5.4", true);
         double gastoDeCompra    = 0.0;   // Cuenta específica de gasto de compra (no existe en catálogo actual)
         double comprasTotales   = redondear(compras + gastoDeCompra);
-        double devCompras       = getSaldoGrupoNormal("5.1", NaturalezaCuenta.ACREEDORA);
+        double devCompras       = getMovimientoGrupo("5.1", false);
         double comprasNetas     = redondear(comprasTotales - devCompras);
         double mercDisponible   = redondear(inventarioInicial + comprasNetas);
 
         // El costo de ventas sale del costo valorizado de las salidas de venta.
         // El saldo guardado en Kárdex puede provenir de versiones anteriores que
         // valoraron compras por cantidad * costo unitario y no por el asiento.
-        double costoVentas      = redondear(kardexService.obtenerCostoDeVentasTotal());
-        double inventarioFinal  = redondear(mercDisponible - costoVentas);
+        double costoVentas      = redondear(getSaldoGrupoNormal("5.2", NaturalezaCuenta.DEUDORA));
+        double inventarioFinal  = redondear(getSaldoGrupoNormal("1.2", NaturalezaCuenta.DEUDORA));
         double utilidadBruta    = redondear(ventasNetas - costoVentas);
 
         // Gastos de operación
@@ -284,6 +282,22 @@ public class EstadoResultadosView extends ScrollPane {
 
     // ── Utilidades ────────────────────────────────────────────────────
 
+    private double getMovimientoGrupo(String prefijo, boolean debe) {
+        return cuentasMayorizadas.stream()
+                .filter(m -> m.getCodigo().equals(prefijo) || m.getCodigo().startsWith(prefijo + "."))
+                .mapToDouble(m -> debe ? m.getTotalDebe() : m.getTotalHaber())
+                .sum();
+    }
+
+    private double getInventarioInicialRegistrado() {
+        return cuentasMayorizadas.stream()
+                .filter(m -> m.getCodigo().equals("1.2") || m.getCodigo().startsWith("1.2."))
+                .flatMap(m -> m.getMovimientos().stream())
+                .filter(m -> m.getConcepto() == null || !m.getConcepto().startsWith("AUTO_KARDEX_"))
+                .mapToDouble(m -> m.getDebe() - m.getHaber())
+                .sum();
+    }
+
     /** Suma saldos por naturaleza normal dentro del grupo, incluidos padres con movimientos directos. */
     private double getSaldoGrupoNormal(String prefijo, NaturalezaCuenta naturalezaNormal) {
         return cuentasMayorizadas.stream()
@@ -318,7 +332,7 @@ public class EstadoResultadosView extends ScrollPane {
                 else rows.add(fila.getConcepto()+" | "+(fila.getDetalle() == null ? "" : MONEDA.format(fila.getDetalle()))+" | "+(fila.getTotal() == null ? "" : MONEDA.format(fila.getTotal())));
             }
             rows.add("");
-            rows.add("Nota: Estado preparado con base en el libro diario y la valuación de inventario por método PEPS.");
+            rows.add("Nota: Estado preparado con base en el libro diario y la valuación de inventario por promedio ponderado móvil.");
             rows.add("");
             rows.add("FIRMAS:");
             dest = ExportacionService.exportarPDF(ExportacionService.obtenerNombreEmpresa(), "Estado de Resultados", rows, dest);

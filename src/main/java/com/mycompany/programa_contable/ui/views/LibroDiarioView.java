@@ -6,6 +6,8 @@ import com.mycompany.programa_contable.model.Asiento;
 import com.mycompany.programa_contable.model.Cuenta;
 import com.mycompany.programa_contable.model.DetalleAsiento;
 import com.mycompany.programa_contable.service.ExportacionService;
+import com.mycompany.programa_contable.service.ReglasIva;
+import com.mycompany.programa_contable.service.CalculoIva;
 
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -120,22 +122,22 @@ public class LibroDiarioView extends VBox {
         // Habilitar búsqueda por texto
         cbCuenta.setEditable(true);
         cbCuenta.getEditor().textProperty().addListener((obs, oldValue, newValue) -> {
-            Cuenta selected = cbCuenta.getSelectionModel().getSelectedItem();
-            if (selected != null && selected.toString().equals(cbCuenta.getEditor().getText())) {
-                return;
-            }
-            if (newValue == null || newValue.isEmpty()) {
-                cbCuenta.setItems(itemsOriginales);
-            } else {
-                String filter = newValue.toLowerCase();
-                List<Cuenta> filtered = itemsOriginales.stream()
-                        .filter(c -> c.toString().toLowerCase().contains(filter))
-                        .toList();
-                cbCuenta.setItems(FXCollections.observableArrayList(filtered));
-                if (!filtered.isEmpty()) {
-                    cbCuenta.show();
+            String textoBuscado = newValue == null ? "" : newValue;
+            javafx.application.Platform.runLater(() -> {
+                if (!textoBuscado.equals(cbCuenta.getEditor().getText())) return;
+                Cuenta selected = cbCuenta.getSelectionModel().getSelectedItem();
+                if (selected != null && selected.toString().equals(textoBuscado)) return;
+                if (textoBuscado.isEmpty()) {
+                    cbCuenta.setItems(itemsOriginales);
+                } else {
+                    String filtro = textoBuscado.toLowerCase(java.util.Locale.ROOT);
+                    List<Cuenta> filtradas = itemsOriginales.stream()
+                            .filter(c -> c.toString().toLowerCase(java.util.Locale.ROOT).contains(filtro))
+                            .toList();
+                    cbCuenta.setItems(FXCollections.observableArrayList(filtradas));
+                    if (!filtradas.isEmpty()) cbCuenta.show();
                 }
-            }
+            });
         });
         cbCuenta.setConverter(new javafx.util.StringConverter<Cuenta>() {
             @Override
@@ -187,50 +189,42 @@ public class LibroDiarioView extends VBox {
             }
 
             // 1. AUTOMATIZACIÓN INTELIGENTE DE IVA EN COMPRAS Y ACTIVOS FIJOS (Al Debe)
-            boolean esCompraOActivoConIva = ("5.4".equals(codigoCuenta) || codigoCuenta.startsWith("5.4") || 
-                                             codigoCuenta.startsWith("1.5") || codigoCuenta.startsWith("1.6") || 
-                                             codigoCuenta.startsWith("1.7") );
+            boolean esCompraOActivoConIva = ReglasIva.esCuentaConCreditoFiscal(codigoCuenta);
+
+            if (ReglasIva.esDevolucionDeCompra(codigoCuenta) && haberVal > 0) {
+                CalculoIva.Desglose desglose = CalculoIva.desglosar(haberVal, tasaIva, ivaIncluido);
+                agregarLineaContable(sel, 0.0, desglose.base());
+                agregarLineaContable(cuentaDAO.buscarPorCodigo("1.4"), 0.0, desglose.impuesto());
+                finalizarAgregarLinea(cbCuenta, txtMontoDebe, txtMontoHaber);
+                return;
+            }
 
             if (esCompraOActivoConIva && debeVal > 0) {
-                double valorNeto = ivaIncluido ? redondear(debeVal / (1.0 + tasaIva)) : debeVal;
-                double ivaCredito = ivaIncluido
-                        ? redondear(debeVal - valorNeto)
-                        : redondear(valorNeto * tasaIva);
+                CalculoIva.Desglose desglose = CalculoIva.desglosar(debeVal, tasaIva, ivaIncluido);
 
-                agregarLineaContable(sel, valorNeto, 0.0);
-                agregarLineaContable(cuentaDAO.buscarPorCodigo("1.4"), ivaCredito, 0.0);
+                agregarLineaContable(sel, desglose.base(), 0.0);
+                agregarLineaContable(cuentaDAO.buscarPorCodigo("1.4"), desglose.impuesto(), 0.0);
 
                 finalizarAgregarLinea(cbCuenta, txtMontoDebe, txtMontoHaber);
                 return;
             }
 
             // 2. AUTOMATIZACIÓN INTELIGENTE DE IVA EN VENTAS (Al Haber)
-            if ("4.1".equals(codigoCuenta) && haberVal > 0) {
-                double valorNetoVenta = ivaIncluido ? redondear(haberVal / (1.0 + tasaIva)) : haberVal;
-                double ivaDebito = ivaIncluido
-                        ? redondear(haberVal - valorNetoVenta)
-                        : redondear(valorNetoVenta * tasaIva);
-
-                agregarLineaContable(sel, 0.0, valorNetoVenta);
-                agregarLineaContable(cuentaDAO.buscarPorCodigo("2.3"), 0.0, ivaDebito);
+            if (ReglasIva.esCuentaDeVenta(codigoCuenta) && haberVal > 0) {
+                CalculoIva.Desglose desglose = CalculoIva.desglosar(haberVal, tasaIva, ivaIncluido);
+                agregarLineaContable(sel, 0.0, desglose.base());
+                agregarLineaContable(cuentaDAO.buscarPorCodigo("2.3"), 0.0, desglose.impuesto());
 
                 finalizarAgregarLinea(cbCuenta, txtMontoDebe, txtMontoHaber);
                 return; 
             }
 
-            // 3. AUTOMATIZACIÓN INTELIGENTE DE IVA EN GASTOS FINANCIEROS / COMISIONES (6.1)
-            boolean esGastoFinancieroConIva = ("6.1".equals(codigoCuenta) || codigoCuenta.startsWith("6.1"));
-            if (esGastoFinancieroConIva && debeVal > 0) {
-                double valorComisionNeto = ivaIncluido ? redondear(debeVal / (1.0 + tasaIva)) : debeVal;
-                double ivaComision = ivaIncluido
-                        ? redondear(debeVal - valorComisionNeto)
-                        : redondear(valorComisionNeto * tasaIva);
-
-                agregarLineaContable(sel, valorComisionNeto, 0.0);
-                agregarLineaContable(cuentaDAO.buscarPorCodigo("1.4"), ivaComision, 0.0);
-
+            if (ReglasIva.esDevolucionDeVenta(codigoCuenta) && debeVal > 0) {
+                CalculoIva.Desglose desglose = CalculoIva.desglosar(debeVal, tasaIva, ivaIncluido);
+                agregarLineaContable(sel, desglose.base(), 0.0);
+                agregarLineaContable(cuentaDAO.buscarPorCodigo("2.3"), desglose.impuesto(), 0.0);
                 finalizarAgregarLinea(cbCuenta, txtMontoDebe, txtMontoHaber);
-                return; 
+                return;
             }
 
             // Inserción Manual Normal
@@ -436,9 +430,16 @@ public class LibroDiarioView extends VBox {
             confirm.setTitle("Confirmar Eliminación");
             confirm.showAndWait().ifPresent(resp -> {
                 if (resp == ButtonType.YES) {
-                    libroDiarioDAO.eliminarAsiento(sel.getId());
-                    recargarHistorial();
-                    mostrarAlerta(Alert.AlertType.INFORMATION, "Asiento Eliminado", "El asiento fue eliminado y los saldos se recalcularon.");
+                    try {
+                        if (libroDiarioDAO.eliminarAsiento(sel.getId())) {
+                            recargarHistorial();
+                            mostrarAlerta(Alert.AlertType.INFORMATION, "Asiento Eliminado", "El asiento fue eliminado y el Kárdex se recalculó.");
+                        } else {
+                            mostrarAlerta(Alert.AlertType.WARNING, "Asiento no encontrado", "No se encontró el asiento seleccionado; no se realizaron cambios.");
+                        }
+                    } catch (java.sql.SQLException ex) {
+                        mostrarAlerta(Alert.AlertType.ERROR, "No se pudo eliminar", ex.getMessage());
+                    }
                 }
             });
         });
@@ -741,18 +742,20 @@ public class LibroDiarioView extends VBox {
         fila.setDebe(alDebe ? montoIngresado : 0);
         fila.setHaber(alDebe ? 0 : montoIngresado);
         String codigo = fila.getCuentaCodigo() == null ? "" : fila.getCuentaCodigo();
-        boolean compraOGasto = alDebe && (codigo.startsWith("5.4") || codigo.startsWith("1.5")
-                || codigo.startsWith("1.6") || codigo.startsWith("1.7") || codigo.startsWith("6.1"));
-        boolean venta = !alDebe && "4.1".equals(codigo);
-        if ((compraOGasto || venta) && montoIngresado > 0) {
+        boolean compraOGasto = alDebe && ReglasIva.esCuentaConCreditoFiscal(codigo);
+        boolean devolucionCompra = !alDebe && ReglasIva.esDevolucionDeCompra(codigo);
+        boolean venta = !alDebe && ReglasIva.esCuentaDeVenta(codigo);
+        boolean devolucionVenta = alDebe && ReglasIva.esDevolucionDeVenta(codigo);
+        if (compraOGasto || devolucionCompra || venta || devolucionVenta) {
             double tasa = configuracionDAO.obtenerTasaIva();
             boolean incluido = com.mycompany.programa_contable.model.ConfiguracionDAO.IVA_INCLUIDO
                     .equals(configuracionDAO.obtenerModalidadIva());
-            double neto = incluido ? redondear(montoIngresado / (1.0 + tasa)) : montoIngresado;
-            double iva = incluido ? redondear(montoIngresado - neto) : redondear(montoIngresado * tasa);
+            CalculoIva.Desglose desglose = CalculoIva.desglosar(montoIngresado, tasa, incluido);
+            double neto = desglose.base();
+            double iva = desglose.impuesto();
             fila.setDebe(alDebe ? neto : 0); fila.setHaber(alDebe ? 0 : neto);
 
-            String codigoIva = venta ? "2.3" : "1.4";
+            String codigoIva = venta || devolucionVenta ? "2.3" : "1.4";
             int indice = lineasAsiento.indexOf(fila);
             DetalleAsiento filaIva = null;
             for (int i = indice + 1; i < lineasAsiento.size(); i++) {
@@ -760,7 +763,8 @@ public class LibroDiarioView extends VBox {
                 if (codigoIva.equals(candidata.getCuentaCodigo())) { filaIva = candidata; break; }
             }
             if (filaIva != null) {
-                filaIva.setDebe(alDebe ? iva : 0); filaIva.setHaber(alDebe ? 0 : iva);
+                boolean ivaAlDebe = compraOGasto || devolucionVenta;
+                filaIva.setDebe(ivaAlDebe ? iva : 0); filaIva.setHaber(ivaAlDebe ? 0 : iva);
             }
             for (DetalleAsiento parcial : lineasAsiento) {
                 if (parcial.getRenglon() > fila.getRenglon() && parcial.getCuentaCodigo() != null

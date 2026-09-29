@@ -221,6 +221,11 @@ public class ExportacionService {
                 pw.println("<tr><td>" + l.getCodigo() + "</td><td>" + l.getNombre() + "</td><td class='num'>" + MONEDA.format(l.getMonto()) + "</td><td></td></tr>");
             }
             pw.println("<tr><td colspan='3' style='font-weight:600; text-align:right;'>Total Pasivo Corriente</td><td class='num' style='font-weight:600;'>" + MONEDA.format(bg.getTotalPasivoCorriente()) + "</td></tr>");
+            pw.println("<tr style='background:#f8fafc;'><td colspan='4'><strong style='color:#334155;'>PASIVO NO CORRIENTE</strong></td></tr>");
+            for (BalanceGeneralDTO.LineaBalance l : bg.getPasivosNoCorrientes()) {
+                pw.println("<tr><td>" + l.getCodigo() + "</td><td>" + l.getNombre() + "</td><td class='num'>" + MONEDA.format(l.getMonto()) + "</td><td></td></tr>");
+            }
+            pw.println("<tr><td colspan='3' style='font-weight:600; text-align:right;'>Total Pasivo No Corriente</td><td class='num' style='font-weight:600;'>" + MONEDA.format(bg.getTotalPasivoNoCorriente()) + "</td></tr>");
             pw.println("<tr class='total-row' style='background:#f1f5f9; color:#0f172a;'><td colspan='3'>TOTAL PASIVO</td><td class='num'>" + MONEDA.format(bg.getTotalPasivo()) + "</td></tr>");
 
             pw.println("<tr style='background:#f8fafc;'><td colspan='4'><strong style='color:#334155;'>CAPITAL CONTABLE / PATRIMONIO</strong></td></tr>");
@@ -525,6 +530,26 @@ public class ExportacionService {
             cellTotPC.setCellValue(bg.getTotalPasivoCorriente());
             cellTotPC.setCellStyle(styleCurrencyBold);
 
+            Row rowSecPNC = sheet.createRow(rowIdx++);
+            Cell cellSecPNC = rowSecPNC.createCell(1);
+            cellSecPNC.setCellValue("PASIVO NO CORRIENTE");
+            cellSecPNC.setCellStyle(styleBold);
+            for (BalanceGeneralDTO.LineaBalance l : bg.getPasivosNoCorrientes()) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(l.getCodigo());
+                row.createCell(1).setCellValue(l.getNombre());
+                Cell c = row.createCell(2);
+                c.setCellValue(l.getMonto());
+                c.setCellStyle(styleCurrency);
+            }
+            Row rowTotPNC = sheet.createRow(rowIdx++);
+            Cell cellTotPNCLabel = rowTotPNC.createCell(1);
+            cellTotPNCLabel.setCellValue("Total Pasivo No Corriente");
+            cellTotPNCLabel.setCellStyle(styleBold);
+            Cell cellTotPNC = rowTotPNC.createCell(3);
+            cellTotPNC.setCellValue(bg.getTotalPasivoNoCorriente());
+            cellTotPNC.setCellStyle(styleCurrencyBold);
+
             Row rowTotPasivo = sheet.createRow(rowIdx++);
             Cell cellTotPasivoLabel = rowTotPasivo.createCell(1);
             cellTotPasivoLabel.setCellValue("TOTAL PASIVO");
@@ -703,7 +728,7 @@ public class ExportacionService {
             rowIdx++;
             Row footer = sheet.createRow(rowIdx++);
             Cell footerCell = footer.createCell(0);
-            footerCell.setCellValue("Este estado financiero se preparó con base en los registros contables y el método PEPS aplicado al inventario.");
+            footerCell.setCellValue("Este estado financiero se preparó con base en los registros contables y el promedio ponderado móvil aplicado al inventario.");
             footerCell.setCellStyle(styleSubtitle);
             sheet.addMergedRegion(new CellRangeAddress(footer.getRowNum(), footer.getRowNum(), 0, 2));
             rowIdx++;
@@ -898,7 +923,7 @@ public class ExportacionService {
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 7));
             Row rowTitle = sheet.createRow(rowIdx++);
             Cell cellTitle = rowTitle.createCell(0);
-            cellTitle.setCellValue("KÁRDEX DE INVENTARIO - MÉTODO PEPS");
+            cellTitle.setCellValue("KÁRDEX DE INVENTARIO - PROMEDIO PONDERADO MÓVIL");
             cellTitle.setCellStyle(styleTitle);
             sheet.addMergedRegion(new CellRangeAddress(2, 2, 0, 7));
             

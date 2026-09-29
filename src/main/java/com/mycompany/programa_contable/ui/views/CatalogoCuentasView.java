@@ -232,6 +232,8 @@ public class CatalogoCuentasView extends VBox {
 
         btnGuardar.setDisable(false);
         txtCodigo.setText(generarCodigoHijo(padre));
+        cbNaturaleza.setDisable(esSubcuentaDe(txtCodigo.getText(), "4.2")
+                || esSubcuentaDe(txtCodigo.getText(), "5.1"));
         TipoCuenta tipo = padre.getTipo() != null ? padre.getTipo() : TipoCuenta.desdeCodigo(padre.getCodigo());
         cbSubtipo.setItems(FXCollections.observableArrayList(categoriasPara(padre, tipo)));
         String subtipo = categoriaInicial(padre, tipo);

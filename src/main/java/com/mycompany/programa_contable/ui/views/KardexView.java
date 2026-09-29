@@ -48,7 +48,7 @@ public class KardexView extends ScrollPane {
         VBox titleBox = new VBox(3);
         Label lblTitulo = new Label("Kárdex de Inventario");
         lblTitulo.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: #0f172a;");
-        Label lblSub = new Label("Control de movimientos de inventario por método PEPS");
+        Label lblSub = new Label("Control de movimientos de inventario por promedio ponderado móvil");
         lblSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
         titleBox.getChildren().addAll(lblTitulo, lblSub);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
@@ -125,7 +125,7 @@ public class KardexView extends ScrollPane {
         HBox.setHgrow(spacerBottom, Priority.ALWAYS);
 
         // El Badge Dorado idéntico a tu imagen
-        Label badgeInventario = new Label("✔ INVENTARIO VALUADO (PEPS)");
+        Label badgeInventario = new Label("✔ INVENTARIO VALUADO (PROMEDIO PONDERADO)");
         badgeInventario.setStyle("-fx-background-color: #d97706; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 16 8 16; -fx-background-radius: 5px;");
 
         bottomBar.getChildren().addAll(lblTotalesTitle, lblSumaEntradas, lblSumaSalidas, spacerBottom, badgeInventario);

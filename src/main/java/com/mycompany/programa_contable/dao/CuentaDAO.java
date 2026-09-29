@@ -88,6 +88,7 @@ public class CuentaDAO {
              PreparedStatement ps = conn.prepareStatement(sql)) {
             if (c.getCuentaPadre() == null || !c.getCodigo().startsWith(c.getCuentaPadre() + ".")
                     || c.getSubtipo() == null || c.getSubtipo().isBlank()) return false;
+            if (!naturalezaContraCuentaValida(c)) return false;
             String segmentoCodigo = c.getCodigo().substring((c.getCuentaPadre() + ".").length());
             if (segmentoCodigo.isEmpty() || segmentoCodigo.contains(".") || !segmentoCodigo.matches("\\d+")) return false;
             try (PreparedStatement parentQuery = conn.prepareStatement(
@@ -121,6 +122,7 @@ public class CuentaDAO {
     }
 
     public boolean actualizar(Cuenta c) {
+        if (!naturalezaContraCuentaValida(c)) return false;
         String sql = "UPDATE cuentas SET nombre = ?, tipo = ?, subtipo = ?, nivel = ?, naturaleza = ?, cuenta_padre = ?, permite_movimiento = ? WHERE codigo = ?";
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -137,6 +139,22 @@ public class CuentaDAO {
             System.err.println("[CuentaDAO] Error actualizando cuenta: " + e.getMessage());
             return false;
         }
+    }
+
+    private boolean naturalezaContraCuentaValida(Cuenta cuenta) {
+        String codigo = cuenta.getCodigo();
+        if (codigo == null) return false;
+        boolean devolucionVenta = codigo.equals("4.2") || codigo.startsWith("4.2.");
+        boolean devolucionCompra = codigo.equals("5.1") || codigo.startsWith("5.1.");
+        if (devolucionVenta) {
+            return cuenta.getNaturaleza() == NaturalezaCuenta.DEUDORA
+                    && "RESTA A INGRESOS".equals(cuenta.getSubtipo());
+        }
+        if (devolucionCompra) {
+            return cuenta.getNaturaleza() == NaturalezaCuenta.ACREEDORA
+                    && "RESTA A COSTOS".equals(cuenta.getSubtipo());
+        }
+        return true;
     }
 
     public boolean tieneMovimientos(String codigo) {

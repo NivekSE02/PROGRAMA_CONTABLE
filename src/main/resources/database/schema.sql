@@ -6,6 +6,8 @@
 PRAGMA foreign_keys = ON;
 
 -- Eliminar tablas en orden correcto (dependencias primero)
+DROP TABLE IF EXISTS detalle_asiento_predefinido;
+DROP TABLE IF EXISTS asientos_predefinidos;
 DROP TABLE IF EXISTS detalle_asiento;
 DROP TABLE IF EXISTS kardex;
 DROP TABLE IF EXISTS asientos;
@@ -91,6 +93,25 @@ CREATE TABLE kardex (
 CREATE TABLE configuracion (
     clave TEXT PRIMARY KEY,
     valor TEXT NOT NULL
+);
+
+-- =========================================================
+-- 7. Plantillas de asientos
+-- =========================================================
+CREATE TABLE asientos_predefinidos (
+    nombre TEXT PRIMARY KEY,
+    concepto TEXT
+);
+
+CREATE TABLE detalle_asiento_predefinido (
+    nombre TEXT NOT NULL,
+    renglon INTEGER NOT NULL,
+    cuenta_codigo TEXT NOT NULL,
+    concepto_linea TEXT,
+    lado TEXT NOT NULL CHECK(lado IN ('DEBE', 'HABER')),
+    PRIMARY KEY (nombre, renglon),
+    FOREIGN KEY (nombre) REFERENCES asientos_predefinidos(nombre) ON DELETE CASCADE,
+    FOREIGN KEY (cuenta_codigo) REFERENCES cuentas(codigo)
 );
 
 -- =========================================================

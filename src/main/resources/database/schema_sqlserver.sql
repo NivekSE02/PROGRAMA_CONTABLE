@@ -3,6 +3,8 @@
 -- Base de Datos: Sistema_Contable
 -- =====================================================================
 
+IF OBJECT_ID('detalle_asiento_predefinido', 'U') IS NOT NULL DROP TABLE detalle_asiento_predefinido;
+IF OBJECT_ID('asientos_predefinidos', 'U') IS NOT NULL DROP TABLE asientos_predefinidos;
 IF OBJECT_ID('detalle_asiento', 'U') IS NOT NULL DROP TABLE detalle_asiento;
 IF OBJECT_ID('kardex', 'U') IS NOT NULL DROP TABLE kardex;
 IF OBJECT_ID('asientos', 'U') IS NOT NULL DROP TABLE asientos;
@@ -72,6 +74,22 @@ CREATE TABLE kardex (
 CREATE TABLE configuracion (
     clave NVARCHAR(100) PRIMARY KEY,
     valor NVARCHAR(500) NOT NULL
+);
+
+CREATE TABLE asientos_predefinidos (
+    nombre NVARCHAR(255) PRIMARY KEY,
+    concepto NVARCHAR(255)
+);
+
+CREATE TABLE detalle_asiento_predefinido (
+    nombre NVARCHAR(255) NOT NULL,
+    renglon INT NOT NULL,
+    cuenta_codigo NVARCHAR(50) NOT NULL,
+    concepto_linea NVARCHAR(255),
+    lado NVARCHAR(10) NOT NULL CHECK(lado IN ('DEBE', 'HABER')),
+    PRIMARY KEY (nombre, renglon),
+    FOREIGN KEY (nombre) REFERENCES asientos_predefinidos(nombre) ON DELETE CASCADE,
+    FOREIGN KEY (cuenta_codigo) REFERENCES cuentas(codigo)
 );
 
 -- Índices

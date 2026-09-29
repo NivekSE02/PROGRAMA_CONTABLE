@@ -20,7 +20,6 @@ public class AsientoPredefinidoDAO {
                 s.executeUpdate("CREATE TABLE asientos_predefinidos (nombre " + tipoTexto + " PRIMARY KEY, concepto " + tipoTexto + ")");
             if (!tablaExiste(c, "detalle_asiento_predefinido"))
                 s.executeUpdate("CREATE TABLE detalle_asiento_predefinido (nombre " + tipoTexto + " NOT NULL, renglon INT NOT NULL, cuenta_codigo " + tipoCuenta + " NOT NULL, concepto_linea " + tipoTexto + ", lado " + (db.getMotorActivo() == DatabaseManager.MotorBD.SQL_SERVER ? "NVARCHAR(10)" : "TEXT") + " NOT NULL, PRIMARY KEY (nombre, renglon), FOREIGN KEY (nombre) REFERENCES asientos_predefinidos(nombre) ON DELETE CASCADE, FOREIGN KEY (cuenta_codigo) REFERENCES cuentas(codigo))");
-            s.executeUpdate("UPDATE detalle_asiento_predefinido SET concepto_linea = ''");
         } catch (SQLException e) {
             System.err.println("[AsientoPredefinidoDAO] No se pudo inicializar almacenamiento: " + e.getMessage());
         }

@@ -65,6 +65,10 @@ public class DatabaseManager {
     }
 
     private Path obtenerRutaSQLite() {
+        String rutaConfigurada = System.getProperty("contanoportable.db");
+        if (rutaConfigurada != null && !rutaConfigurada.isBlank()) {
+            return Path.of(rutaConfigurada).toAbsolutePath();
+        }
         String localAppData = System.getenv("LOCALAPPDATA");
         Path dataDirectory = localAppData != null && !localAppData.isBlank()
                 ? Path.of(localAppData, "ContaNoPortable")
@@ -73,6 +77,8 @@ public class DatabaseManager {
     }
 
     private void migrarBaseLegadaSiExiste(Path databasePath) throws Exception {
+        if (System.getProperty("contanoportable.db") != null
+                && !System.getProperty("contanoportable.db").isBlank()) return;
         if (Files.exists(databasePath)) return;
         Path legacyDatabase = Path.of("contabilidad.db").toAbsolutePath();
         if (Files.isRegularFile(legacyDatabase) && !legacyDatabase.equals(databasePath)) {
@@ -118,12 +124,16 @@ public class DatabaseManager {
 
     private synchronized void initDatabase(Connection conn) {
         try {
-            if (!tablesExist(conn)) {
-                System.out.println("[DatabaseManager] Creando tablas en " + motorActivo.getEtiqueta() + "...");
-                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/schema_sqlserver.sql" : "database/schema.sql");
-                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/data_sqlserver.sql" : "database/data.sql");
-                System.out.println("[DatabaseManager] Base de datos inicializada.");
+            int tablasExistentes = contarTablasPrincipales(conn);
+            if (tablasExistentes == 6) return;
+            if (tablasExistentes > 0) {
+                throw new IllegalStateException("La base de datos contiene un esquema incompleto. "
+                        + "No se modificaron ni eliminaron datos; restaure un respaldo o repare el esquema.");
             }
+            System.out.println("[DatabaseManager] Creando tablas en " + motorActivo.getEtiqueta() + "...");
+            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/schema_sqlserver.sql" : "database/schema.sql");
+            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/data_sqlserver.sql" : "database/data.sql");
+            System.out.println("[DatabaseManager] Base de datos inicializada.");
         } catch (Exception e) {
             throw new IllegalStateException("No se pudo inicializar el esquema de " + motorActivo.getEtiqueta() + ".", e);
         }
@@ -131,28 +141,43 @@ public class DatabaseManager {
 
     public synchronized void resetDatabase() {
         try (Connection conn = getConnection()) {
+            boolean sqlite = motorActivo == MotorBD.SQLITE;
+            if (sqlite) {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("PRAGMA foreign_keys = OFF");
+                }
+            }
+            conn.setAutoCommit(false);
             System.out.println("[DatabaseManager] Restableciendo base de datos...");
-            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/schema_sqlserver.sql" : "database/schema.sql");
-            ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/data_sqlserver.sql" : "database/data.sql");
-            System.out.println("[DatabaseManager] Base de datos restablecida.");
+            try {
+                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/schema_sqlserver.sql" : "database/schema.sql");
+                ejecutarScript(conn, motorActivo == MotorBD.SQL_SERVER ? "database/data_sqlserver.sql" : "database/data.sql");
+                conn.commit();
+                System.out.println("[DatabaseManager] Base de datos restablecida.");
+            } catch (Exception e) {
+                conn.rollback();
+                throw new SQLException("No se pudo restaurar la base de datos; los cambios se revirtieron.", e);
+            } finally {
+                conn.setAutoCommit(true);
+                if (sqlite) {
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("PRAGMA foreign_keys = ON");
+                    }
+                }
+            }
         } catch (Exception e) {
             System.err.println("[DatabaseManager] Error al restablecer base de datos: " + e.getMessage());
-            e.printStackTrace();
+            throw new IllegalStateException("No se pudo restaurar la base de datos.", e);
         }
     }
 
-    private boolean tablesExist(Connection conn) {
-        try (Statement stmt = conn.createStatement()) {
-            String sql = motorActivo == MotorBD.SQL_SERVER
+    private int contarTablasPrincipales(Connection conn) throws SQLException {
+        String sql = motorActivo == MotorBD.SQL_SERVER
                 ? "SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('cuentas','productos','asientos','detalle_asiento','kardex','configuracion')"
                 : "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('cuentas','productos','asientos','detalle_asiento','kardex','configuracion')";
-            try (ResultSet rs = stmt.executeQuery(sql)) {
-                if (rs.next()) return rs.getInt(1) == 6;
-            }
-        } catch (SQLException e) {
-            return false;
+        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            return rs.next() ? rs.getInt(1) : 0;
         }
-        return false;
     }
 
     private void ejecutarScript(Connection conn, String scriptName) throws Exception {
@@ -171,9 +196,13 @@ public class DatabaseManager {
                 }
             }
             try (Statement stmt = conn.createStatement()) {
-                for (String sql : script.toString().split(";")) {
+                if (motorActivo == MotorBD.SQL_SERVER) {
+                    stmt.execute(script.toString());
+                } else {
+                    for (String sql : script.toString().split(";")) {
                     String cleanSql = sql.trim();
                     if (!cleanSql.isEmpty()) stmt.execute(cleanSql);
+                    }
                 }
             }
         }

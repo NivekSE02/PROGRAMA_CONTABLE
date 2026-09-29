@@ -1,6 +1,7 @@
 package com.mycompany.programa_contable;
 
 import com.mycompany.programa_contable.db.DatabaseManager;
+import com.mycompany.programa_contable.dao.LibroDiarioDAO;
 import com.mycompany.programa_contable.ui.views.MainLayoutView;
 import javafx.application.Application;
 import javafx.scene.image.Image;
@@ -27,6 +28,7 @@ public class MainApp extends Application {
 
         try {
             DatabaseManager.getInstance().initDatabase();
+            new LibroDiarioDAO().completarAsientosKardexExistentes();
         } catch (IllegalStateException e) {
             Alert error = new Alert(Alert.AlertType.ERROR,
                     "No se pudo iniciar ContaNoPortable porque no fue posible preparar su base de datos local.\n\n"

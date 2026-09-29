@@ -83,7 +83,7 @@ VALUES ('Producto Estandar', 8.85, 17.70, 0);
 
 DECLARE @AsientoID INT;
 DECLARE @Num INT;
--- Variables para rastrear saldo acumulado del Kardex (metodo PEPS)
+-- Variables para rastrear saldo acumulado del Kardex (promedio ponderado movil)
 DECLARE @KSaldoCant INT = 0;
 DECLARE @KSaldoVal DECIMAL(18,2) = 0.00;
 
@@ -136,7 +136,7 @@ INSERT INTO detalle_asiento (asiento_id, cuenta_codigo, concepto_linea, debe, ha
 (@AsientoID, '4.1', 'Ventas', 0, 10619.46, 2),
 (@AsientoID, '2.3', 'IVA Debito Fiscal', 0, 1380.54, 3);
 
--- Kardex: Salida por venta (10619.46 / 17.70 = 600 unidades). Costo PEPS: 600 x $8.85 = $5,310.00
+-- Kardex: Salida por venta (10619.46 / 17.70 = 600 unidades). Costo promedio: 600 x $8.85 = $5,310.00
 SET @KSaldoCant = @KSaldoCant - 600;
 SET @KSaldoVal  = @KSaldoVal  - 5310.00;
 INSERT INTO kardex (producto_id, fecha, tipo_movimiento, cantidad, costo_unitario, costo_total, saldo_cantidad, saldo_valor, asiento_id)
@@ -195,7 +195,7 @@ INSERT INTO detalle_asiento (asiento_id, cuenta_codigo, concepto_linea, debe, ha
 (@AsientoID, '4.1', 'Ventas', 0, 4424.77, 2),
 (@AsientoID, '2.3', 'IVA Debito Fiscal', 0, 575.23, 3);
 
--- Kardex: Salida por venta (4424.77 / 17.70 = 250 unidades). Costo PEPS: 250 x $8.85 = $2,212.50
+-- Kardex: Salida por venta (4424.77 / 17.70 = 250 unidades). Costo promedio: 250 x $8.85 = $2,212.50
 SET @KSaldoCant = @KSaldoCant - 250;
 SET @KSaldoVal  = @KSaldoVal  - 2212.50;
 INSERT INTO kardex (producto_id, fecha, tipo_movimiento, cantidad, costo_unitario, costo_total, saldo_cantidad, saldo_valor, asiento_id)

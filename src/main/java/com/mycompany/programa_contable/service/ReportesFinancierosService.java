@@ -23,10 +23,7 @@ public class ReportesFinancierosService {
     public EstadoResultadosDTO generarEstadoResultados() {
         EstadoResultadosDTO estado = new EstadoResultadosDTO();
         
-        KardexService kardexService = new KardexService();
-        double costoVentasKardex = kardexService.obtenerCostoDeVentasTotal();
         List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
-        double costoVentasPeriodo = costoVentasKardex;
 
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
@@ -38,9 +35,6 @@ public class ReportesFinancierosService {
             double saldoNeto = m.getSaldoNeto();
             // En el sistema periódico, el costo es inventario inicial + compras
             // netas - inventario final. Se comparte la misma fórmula de la vista.
-            if (cod.equals("5.2")) {
-                saldoNeto = costoVentasPeriodo;
-            }
 
             String subtipo = m.getSubtipo() == null ? "" : m.getSubtipo().trim().toUpperCase(java.util.Locale.ROOT);
             if (cod.startsWith("4")) {
@@ -59,9 +53,7 @@ public class ReportesFinancierosService {
                 boolean esCuentaNoOperativa = subtipo.equals("RESTA A COSTOS")
                         || subtipo.equals("CUENTA TRANSITORIA");
                 if (!esCuentaCompras && !esCuentaNoOperativa && !cod.equals("5.1")) {
-                    double montoFinal = cod.equals("5.2")
-                            ? costoVentasPeriodo
-                            : saldoSegunNaturaleza(saldoNeto, m.getNaturaleza(), NaturalezaCuenta.DEUDORA);
+                    double montoFinal = saldoSegunNaturaleza(saldoNeto, m.getNaturaleza(), NaturalezaCuenta.DEUDORA);
                     if (montoFinal == 0) continue;
                     estado.agregarCosto(m.getCodigo(), m.getNombre(), montoFinal);
                 }
@@ -100,7 +92,6 @@ public class ReportesFinancierosService {
         double utilidadNeta = generarEstadoResultados().getUtilidadNeta();
 
         List<MayorCuenta> cuentas = mayorizacionService.obtenerMayorizacion(true);
-        double inventarioFinalContable = new KardexService().obtenerInventarioFinal(1);
 
         for (MayorCuenta m : cuentas) {
             String cod = m.getCodigo();
@@ -120,9 +111,6 @@ public class ReportesFinancierosService {
                 // contiene el asiento de apertura. Reconstruimos el saldo final
                 // con importes del mayor y el costo de las salidas de venta para
                 // no arrastrar valores de Kárdex guardados con redondeos antiguos.
-                if (cod.equals("1.2")) {
-                    saldoNeto = inventarioFinalContable;
-                }
                 if (saldoNeto == 0) continue;
                 double saldoPresentado = m.getNaturaleza() == TipoCuenta.ACTIVO.getNaturalezaPorDefecto()
                         ? saldoNeto : -Math.abs(saldoNeto);
@@ -131,10 +119,10 @@ public class ReportesFinancierosService {
             // Pasivo (grupo 2)
             else if (cod.startsWith("2")) {
                 if (saldoNeto == 0) continue;
-                // Clasificar corriente usando subtipo; "CORRIENTE" cubre tanto corriente como corriente/no corriente
+                // Si el catálogo indica ambas porciones, presentar el saldo completo como no corriente.
+                // El modelo actual no guarda el calendario de pagos para separar la porción del próximo año.
                 String subtipo = m.getSubtipo() != null ? m.getSubtipo() : "PASIVO CORRIENTE";
-                boolean esCorriente = !subtipo.contains("NO CORRIENTE")
-                        || subtipo.contains("CORRIENTE / NO CORRIENTE");
+                boolean esCorriente = !subtipo.contains("NO CORRIENTE");
                 double saldoPresentado = m.getNaturaleza() == TipoCuenta.PASIVO.getNaturalezaPorDefecto()
                         ? saldoNeto : -Math.abs(saldoNeto);
                 balance.agregarPasivo(m.getCodigo(), m.getNombre(), saldoPresentado, esCorriente);

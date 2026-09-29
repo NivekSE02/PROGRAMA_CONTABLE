@@ -128,6 +128,11 @@ public class BalanceGeneralView extends ScrollPane {
         lblTotPasCte.setStyle("-fx-font-weight: bold; -fx-alignment: CENTER-RIGHT; -fx-text-fill: #475569;");
         lblTotPasCte.setMaxWidth(Double.MAX_VALUE);
 
+        TableView<BalanceGeneralDTO.LineaBalance> tblPasNoCte = crearTablaLineas(balanceActual.getPasivosNoCorrientes(), "Pasivo No Corriente");
+        Label lblTotPasNoCte = new Label("Total Pasivo No Corriente: " + MONEDA.format(balanceActual.getTotalPasivoNoCorriente()));
+        lblTotPasNoCte.setStyle("-fx-font-weight: bold; -fx-alignment: CENTER-RIGHT; -fx-text-fill: #475569;");
+        lblTotPasNoCte.setMaxWidth(Double.MAX_VALUE);
+
         HBox totPasBox = new HBox(10);
         totPasBox.setAlignment(Pos.CENTER_LEFT);
         totPasBox.setPadding(new Insets(8, 12, 8, 12));
@@ -183,7 +188,8 @@ public class BalanceGeneralView extends ScrollPane {
         lblTotPasCapVal.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-font-family: 'Consolas', monospace; -fx-text-fill: #15803d;");
         totPasCapBox.getChildren().addAll(lblTotPasCapTitle, sp5, lblTotPasCapVal);
 
-        colPasivoCapital.getChildren().addAll(lblPasHeader, new Label("Pasivo Corriente"), tblPasCte, lblTotPasCte, totPasBox,
+        colPasivoCapital.getChildren().addAll(lblPasHeader, new Label("Pasivo Corriente"), tblPasCte, lblTotPasCte,
+            new Label("Pasivo No Corriente"), tblPasNoCte, lblTotPasNoCte, totPasBox,
             new Separator(), lblCapHeader, tblCap, utilBox, totCapBox, new Separator(), totPasCapBox);
 
         columnas.getChildren().addAll(colActivos, colPasivoCapital);
@@ -208,7 +214,9 @@ public class BalanceGeneralView extends ScrollPane {
         colMon.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-family: 'Consolas', monospace;");
         colMon.setPrefWidth(120);
 
-        tbl.getColumns().addAll(colCod, colNom, colMon);
+        tbl.getColumns().add(colCod);
+        tbl.getColumns().add(colNom);
+        tbl.getColumns().add(colMon);
         tbl.setItems(FXCollections.observableArrayList(lineas));
         return tbl;
     }

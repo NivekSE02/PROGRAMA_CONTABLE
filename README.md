@@ -157,6 +157,7 @@ Las pruebas cubren la validación de partida doble y los cálculos de
 mayorización y estados financieros:
 
 - [`PartidaDobleTest.java`](./src/test/java/com/mycompany/programa_contable/PartidaDobleTest.java)
+- [`KardexServiceTest.java`](./src/test/java/com/mycompany/programa_contable/KardexServiceTest.java)
 - [`EstadosFinancierosTest.java`](./src/test/java/com/mycompany/programa_contable/EstadosFinancierosTest.java)
 
 ## Estructura del proyecto

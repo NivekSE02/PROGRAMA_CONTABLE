@@ -5,6 +5,7 @@ import com.mycompany.programa_contable.model.KardexFilaDTO;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,13 +71,7 @@ public class KardexService {
         double saldoActual = 0.0;
 
         String sql = "SELECT k.fecha, k.tipo_movimiento, k.cantidad, k.costo_unitario, k.costo_total, "
-                   + "k.asiento_id, a.concepto, COALESCE((SELECT SUM(CASE "
-                   + "WHEN d.cuenta_codigo = '5.1' OR d.cuenta_codigo LIKE '5.1.%' "
-                   + "THEN d.haber - d.debe ELSE d.debe - d.haber END) "
-                   + "FROM detalle_asiento d WHERE d.asiento_id = k.asiento_id AND ("
-                   + "d.cuenta_codigo = '1.2' OR d.cuenta_codigo LIKE '1.2.%' "
-                   + "OR d.cuenta_codigo = '5.4' OR d.cuenta_codigo LIKE '5.4.%' "
-                   + "OR d.cuenta_codigo = '5.1' OR d.cuenta_codigo LIKE '5.1.%')), 0) AS importe_contable "
+                   + "k.asiento_id, a.concepto "
                    + "FROM kardex k INNER JOIN asientos a ON k.asiento_id = a.id "
                    + "WHERE k.producto_id = ? ORDER BY k.fecha ASC, k.id ASC";
 
@@ -91,15 +86,6 @@ public class KardexService {
                     int cantidad    = rs.getInt("cantidad");
                     double costoU   = rs.getDouble("costo_unitario");
                     double costoT   = rs.getDouble("costo_total");
-
-                    // En aperturas, compras y devoluciones a proveedor, el asiento
-                    // es la fuente del importe. Versiones anteriores guardaban
-                    // cantidad * costo unitario y acumulaban diferencias de redondeo.
-                    double importe = rs.getDouble("importe_contable");
-                    if (importe > 0) {
-                        costoT = redondear(importe);
-                        costoU = costoT / cantidad;
-                    }
 
                     int entrada = 0, salida = 0;
                     if (tipo.equals("ENTRADA")) {
@@ -125,71 +111,126 @@ public class KardexService {
     public void registrarMovimientoConConexión(Connection conn, int productoId, String fecha,
             String tipoMovimiento, int cantidad, double importeEntrada,
             boolean usarCostoPromedio, int asientoId) throws Exception {
-        int ultimoSaldoCantidad = 0;
-        double ultimoSaldoValor = 0.0;
-
-        // SQLite usa LIMIT, SQL Server usa TOP
-        String sqlSaldo;
-        if (dbManager.getMotorActivo() == DatabaseManager.MotorBD.SQLITE) {
-            sqlSaldo = "SELECT saldo_cantidad, saldo_valor FROM kardex WHERE producto_id = ? ORDER BY fecha DESC, id DESC LIMIT 1";
-        } else {
-            sqlSaldo = "SELECT TOP 1 saldo_cantidad, saldo_valor FROM kardex WHERE producto_id = ? ORDER BY fecha DESC, id DESC";
+        if (cantidad <= 0) throw new IllegalArgumentException("La cantidad del movimiento debe ser mayor que cero.");
+        if (!"ENTRADA".equalsIgnoreCase(tipoMovimiento) && !"SALIDA".equalsIgnoreCase(tipoMovimiento)) {
+            throw new IllegalArgumentException("Tipo de movimiento inválido: " + tipoMovimiento);
         }
+        if (importeEntrada < 0) throw new IllegalArgumentException("El importe no puede ser negativo.");
 
-        try (PreparedStatement psSaldo = conn.prepareStatement(sqlSaldo)) {
-            psSaldo.setInt(1, productoId);
-            try (ResultSet rs = psSaldo.executeQuery()) {
-                if (rs.next()) {
-                    ultimoSaldoCantidad = rs.getInt("saldo_cantidad");
-                    ultimoSaldoValor    = rs.getDouble("saldo_valor");
-                }
-            }
-        }
-
-        if (cantidad <= 0) {
-            throw new IllegalArgumentException("La cantidad del movimiento debe ser mayor que cero.");
-        }
-
-        double costoUnitario;
-        double costoTotalMovimiento;
-        if (usarCostoPromedio) {
-            if (ultimoSaldoCantidad <= 0 || ultimoSaldoValor < 0) {
-                throw new IllegalArgumentException("No hay existencias valorizadas para calcular el costo promedio.");
-            }
-            costoUnitario = ultimoSaldoValor / ultimoSaldoCantidad;
-            costoTotalMovimiento = redondear(cantidad * costoUnitario);
-        } else {
-            costoTotalMovimiento = redondear(importeEntrada);
-            costoUnitario = costoTotalMovimiento / cantidad;
-        }
-
-        int nuevoSaldoCantidad;
-        double nuevoSaldoValor;
-
-        if ("ENTRADA".equalsIgnoreCase(tipoMovimiento)) {
-            nuevoSaldoCantidad = ultimoSaldoCantidad + cantidad;
-            nuevoSaldoValor    = redondear(ultimoSaldoValor + costoTotalMovimiento);
-        } else {
-            if (cantidad > ultimoSaldoCantidad) {
-                throw new IllegalArgumentException("La salida supera las existencias disponibles en el Kárdex.");
-            }
-            nuevoSaldoCantidad = ultimoSaldoCantidad - cantidad;
-            nuevoSaldoValor    = redondear(ultimoSaldoValor - costoTotalMovimiento);
-        }
-
+        // Las salidas y las devoluciones de clientes se valorizan en el recálculo.
+        double costoInicial = "ENTRADA".equalsIgnoreCase(tipoMovimiento) && !usarCostoPromedio
+                ? redondear(importeEntrada) : 0.0;
         String sql = "INSERT INTO kardex (producto_id, fecha, tipo_movimiento, cantidad, costo_unitario, costo_total, saldo_cantidad, saldo_valor, asiento_id) "
-                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                   + "VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, productoId);
             ps.setString(2, fecha);
-            ps.setString(3, tipoMovimiento);
+            ps.setString(3, tipoMovimiento.toUpperCase(java.util.Locale.ROOT));
             ps.setInt(4, cantidad);
-            ps.setDouble(5, costoUnitario);
-            ps.setDouble(6, costoTotalMovimiento);
-            ps.setInt(7, nuevoSaldoCantidad);
-            ps.setDouble(8, nuevoSaldoValor);
-            ps.setInt(9, asientoId);
+            ps.setDouble(5, costoInicial / cantidad);
+            ps.setDouble(6, costoInicial);
+            ps.setInt(7, asientoId);
             ps.executeUpdate();
+        }
+        recalcularKardex(conn, productoId);
+    }
+
+    /** Revalora el producto en orden cronológico usando promedio ponderado móvil. */
+    public void recalcularKardex(Connection conn, int productoId) throws SQLException {
+        String sql = "SELECT k.id, k.tipo_movimiento, k.cantidad, k.costo_unitario, k.costo_total, "
+                + "COALESCE(d.importe_entrada, 0) AS importe_entrada, "
+                + "COALESCE(d.devolucion_venta, 0) AS devolucion_venta, "
+                + "COALESCE(d.importe_devolucion_compra, 0) AS importe_devolucion_compra, "
+                + "COALESCE(d.devolucion_compra, 0) AS devolucion_compra "
+                + "FROM kardex k LEFT JOIN (SELECT asiento_id, "
+                + "SUM(CASE WHEN cuenta_codigo = '1.2' OR cuenta_codigo LIKE '1.2.%' "
+                + "OR cuenta_codigo = '5.4' OR cuenta_codigo LIKE '5.4.%' THEN debe - haber ELSE 0 END) AS importe_entrada, "
+                + "MAX(CASE WHEN (cuenta_codigo = '4.2' OR cuenta_codigo LIKE '4.2.%') AND debe > 0 THEN 1 ELSE 0 END) AS devolucion_venta, "
+                + "SUM(CASE WHEN cuenta_codigo = '5.1' OR cuenta_codigo LIKE '5.1.%' THEN haber ELSE 0 END) AS importe_devolucion_compra, "
+                + "MAX(CASE WHEN (cuenta_codigo = '5.1' OR cuenta_codigo LIKE '5.1.%') AND haber > 0 THEN 1 ELSE 0 END) AS devolucion_compra "
+                + "FROM detalle_asiento GROUP BY asiento_id) d ON d.asiento_id = k.asiento_id "
+                + "WHERE k.producto_id = ? ORDER BY k.fecha ASC, k.id ASC";
+        String update = "UPDATE kardex SET costo_unitario = ?, costo_total = ?, saldo_cantidad = ?, saldo_valor = ? WHERE id = ?";
+        List<MovimientoRecalculo> movimientos = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, productoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) movimientos.add(new MovimientoRecalculo(rs.getInt("id"),
+                        rs.getString("tipo_movimiento"), rs.getInt("cantidad"), rs.getDouble("costo_unitario"),
+                        rs.getDouble("costo_total"), rs.getDouble("importe_entrada"),
+                        rs.getInt("devolucion_venta") == 1, rs.getDouble("importe_devolucion_compra"),
+                        rs.getInt("devolucion_compra") == 1));
+            }
+        }
+
+        int saldoCantidad = 0;
+        double saldoValor = 0;
+        double costoUltimaSalida = 0;
+        try (PreparedStatement ps = conn.prepareStatement(update)) {
+            for (MovimientoRecalculo movimiento : movimientos) {
+                int cantidad = movimiento.cantidad;
+                double costoUnitario;
+                double costoTotal;
+                if ("ENTRADA".equalsIgnoreCase(movimiento.tipo)) {
+                    if (movimiento.devolucionVenta) {
+                        costoUnitario = saldoCantidad > 0 ? saldoValor / saldoCantidad
+                                : (costoUltimaSalida > 0 ? costoUltimaSalida : movimiento.costoUnitario);
+                        if (costoUnitario <= 0) throw new SQLException("No se puede valorizar la devolución: falta costo histórico.");
+                        costoTotal = redondear(costoUnitario * cantidad);
+                    } else {
+                        costoTotal = movimiento.importeEntrada > 0
+                                ? redondear(movimiento.importeEntrada) : redondear(movimiento.costoTotal);
+                        if (costoTotal < 0) throw new SQLException("El costo de una entrada no puede ser negativo.");
+                        costoUnitario = costoTotal / cantidad;
+                    }
+                    saldoCantidad += cantidad;
+                    saldoValor = redondear(saldoValor + costoTotal);
+                } else {
+                    if (cantidad > saldoCantidad) {
+                        throw new SQLException("El movimiento " + movimiento.id + " dejaría existencias negativas; revise las fechas o los asientos relacionados.");
+                    }
+                    if (movimiento.devolucionCompra) {
+                        costoTotal = movimiento.importeDevolucionCompra > 0
+                                ? redondear(movimiento.importeDevolucionCompra) : redondear(movimiento.costoTotal);
+                        if (costoTotal > saldoValor + 0.005) {
+                            throw new SQLException("La devolucion al proveedor superaria el valor disponible del inventario.");
+                        }
+                        costoUnitario = costoTotal / cantidad;
+                    } else {
+                        costoUnitario = saldoValor / saldoCantidad;
+                        costoTotal = cantidad == saldoCantidad ? saldoValor : redondear(cantidad * costoUnitario);
+                    }
+                    costoUltimaSalida = costoUnitario;
+                    saldoCantidad -= cantidad;
+                    saldoValor = saldoCantidad == 0 ? 0 : redondear(saldoValor - costoTotal);
+                }
+                ps.setDouble(1, costoUnitario);
+                ps.setDouble(2, costoTotal);
+                ps.setInt(3, saldoCantidad);
+                ps.setDouble(4, saldoValor);
+                ps.setInt(5, movimiento.id);
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private static final class MovimientoRecalculo {
+        final int id;
+        final String tipo;
+        final int cantidad;
+        final double costoUnitario;
+        final double costoTotal;
+        final double importeEntrada;
+        final boolean devolucionVenta;
+        final double importeDevolucionCompra;
+        final boolean devolucionCompra;
+        MovimientoRecalculo(int id, String tipo, int cantidad, double costoUnitario,
+                double costoTotal, double importeEntrada, boolean devolucionVenta,
+                double importeDevolucionCompra, boolean devolucionCompra) {
+            this.id = id; this.tipo = tipo; this.cantidad = cantidad; this.costoUnitario = costoUnitario;
+            this.costoTotal = costoTotal; this.importeEntrada = importeEntrada; this.devolucionVenta = devolucionVenta;
+            this.importeDevolucionCompra = importeDevolucionCompra; this.devolucionCompra = devolucionCompra;
         }
     }
 

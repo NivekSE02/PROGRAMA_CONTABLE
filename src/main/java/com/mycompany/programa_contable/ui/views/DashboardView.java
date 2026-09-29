@@ -107,7 +107,7 @@ public class DashboardView extends ScrollPane {
         kpiGrid.add(kpiCard("CUENTAS POR COBRAR", MONEDA.format(cuentasPorCobrar),
             "Saldos pendientes de clientes", "card-accent-amber", null, null), 1, 0);
         kpiGrid.add(kpiCard("INVENTARIO FINAL", MONEDA.format(inventario),
-            "Existencia valorizada según PEPS", "card-accent-indigo", null, null), 2, 0);
+            "Existencia valorizada según promedio ponderado", "card-accent-indigo", null, null), 2, 0);
         kpiGrid.add(kpiCard("CUENTAS POR PAGAR", MONEDA.format(cuentasPorPagar),
             "Obligaciones pendientes con proveedores", "card-accent-rose", null, null), 3, 0);
 

@@ -250,11 +250,17 @@ public class ConfiguracionView extends ScrollPane {
         confirm.setHeaderText(null);
         confirm.showAndWait().ifPresent(response -> {
             if (response == ButtonType.YES) {
-                DatabaseManager.getInstance().resetDatabase();
-                cargarUI();
-                if (onDatabaseRestored != null) onDatabaseRestored.run();
-                new Alert(Alert.AlertType.INFORMATION,
-                        "Base de datos restaurada exitosamente.", ButtonType.OK).showAndWait();
+                try {
+                    DatabaseManager.getInstance().resetDatabase();
+                    cargarUI();
+                    if (onDatabaseRestored != null) onDatabaseRestored.run();
+                    new Alert(Alert.AlertType.INFORMATION,
+                            "Base de datos restaurada exitosamente.", ButtonType.OK).showAndWait();
+                } catch (RuntimeException ex) {
+                    new Alert(Alert.AlertType.ERROR,
+                            "No se pudo completar la restauración. Verifique la base de datos antes de continuar.\n"
+                                    + ex.getMessage(), ButtonType.OK).showAndWait();
+                }
             }
         });
     }
