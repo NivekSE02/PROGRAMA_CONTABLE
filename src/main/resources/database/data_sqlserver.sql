@@ -100,9 +100,9 @@ INSERT INTO detalle_asiento (asiento_id, cuenta_codigo, concepto_linea, debe, ha
 
 -- Kardex: Entrada inventario inicial (6000 / 8.85 = 678 unidades)
 SET @KSaldoCant = @KSaldoCant + 678;
-SET @KSaldoVal  = @KSaldoVal  + 5999.30;
+SET @KSaldoVal  = @KSaldoVal  + 6000.00;
 INSERT INTO kardex (producto_id, fecha, tipo_movimiento, cantidad, costo_unitario, costo_total, saldo_cantidad, saldo_valor, asiento_id)
-VALUES (1, '2026-01-01', 'ENTRADA', 678, 8.85, 5999.30, @KSaldoCant, @KSaldoVal, @AsientoID);
+VALUES (1, '2026-01-01', 'ENTRADA', 678, 8.84955752, 6000.00, @KSaldoCant, @KSaldoVal, @AsientoID);
 
 SET @Num = @Num + 1;
 -- Asiento 2
@@ -172,7 +172,7 @@ SET @Num = @Num + 1;
 INSERT INTO asientos (numero, fecha, concepto, total_debe, total_haber) VALUES (@Num, '2026-02-15', 'C/Compra de Laptop', 580.00, 580.00);
 SET @AsientoID = SCOPE_IDENTITY();
 INSERT INTO detalle_asiento (asiento_id, cuenta_codigo, concepto_linea, debe, haber, renglon) VALUES 
-(@AsientoID, '1.6.1', 'Mobiliario y equipo de oficina', 513.27, 0, 1),
+(@AsientoID, '1.6.2', 'Equipo de computo', 513.27, 0, 1),
 (@AsientoID, '1.4', 'IVA Credito Fiscal', 66.73, 0, 2),
 (@AsientoID, '1.1.2', 'Bancos', 0, 580.00, 3);
 
